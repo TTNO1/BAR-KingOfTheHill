@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KOTH Configurator</title>
+	<link rel="icon" type="image/x-icon" href="https://cdn.prod.website-files.com/5c68622246b367adf6f3041d/66db72b254c9b267644377f7_favicon%20(2024).png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css2?family=Google+Sans+Code:ital,wght,MONO@0,300..800,1;1,300..800,1&family=Noto+Sans:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="configurator.css">
+</head>
+<body>
+    <header>
+        <div id="logo">
+            <img src="https://cdn.prod.website-files.com/5c68622246b367adf6f3041d/66f94bf43835f103fe529d9f_BAR-Beyond-All-Reason-Logo-20-Simple-NoGlow-V2.svg" alt="BAR logo" id="logoImg">
+            <div id="logoSubtitle">King of the Hill Configurator</div>
+        </div>
+    </header>
+
+    <div id="mainContent">
+        <!-- Map Selection -->
+        <div class="section-block">
+            <div class="subtitle">Configure Map</div>
+            <div class="custom-dropdown" id="mapDropdown">
+                <div class="dropdown-trigger" id="mapTrigger">
+                    <img class="selected-thumb" id="mapThumb" src="" alt="" style="display: none;" />
+                    <input type="text" class="dropdown-search" id="mapSearch" placeholder="Select or search map..." autocomplete="off" />
+                    <span class="dropdown-arrow">&#9662;</span>
+                </div>
+                <ul class="dropdown-menu" id="mapMenu">
+                    <li class="dropdown-loading">Loading maps...</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Map Display -->
+        <div class="section-block map-display-section" id="mapDisplaySection" style="display: none;">
+            <div id="mapViewContainer">
+                <img id="mapImage" src="" alt="Selected Map" draggable="false" />
+                <div id="startboxesContainer"></div>
+                <div id="hillContainer">
+                    <div id="hillResizeHandle"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Configurations -->
+        <div class="config-grid">
+            <!-- Startbox Config -->
+            <div class="section-block config-panel">
+                <div class="subtitle">Start Boxes</div>
+                <select id="startboxType" class="flat-select"></select>
+                
+                <div id="startboxSliderContainer" style="display: none; margin-top: 15px;">
+                    <label for="startboxSlider" id="startboxSliderLabel">Width (%)</label>
+                    <input type="range" id="startboxSlider" class="flat-slider" min="0" max="50" value="20">
+                    <span id="startboxSliderValue">20</span>
+                </div>
+				<div style="margin-top: 15px; font-size: 0.85rem; color: #aaa;">
+                    For visual reference only.
+                </div>
+            </div>
+
+            <!-- Hill Config -->
+            <div class="section-block config-panel">
+                <div class="subtitle">Hill Area</div>
+                <select id="hillType" class="flat-select">
+                    <option value="Rectangle">Rectangle</option>
+                    <option value="Circle" selected>Circle</option>
+                </select>
+                <div style="margin-top: 15px; font-size: 0.85rem; color: #aaa;">
+                    Drag to move. Use bottom-right corner to resize.
+                </div>
+            </div>
+        </div>
+
+		<!-- Mod Options Section -->
+		<div class="section-block options-section">
+			<div class="subtitle">Mod Options</div>
+			<div class="options-container">
+				
+				<div class="option-row">
+					<div class="option-control">
+						<label class="flat-checkbox">
+							<input type="checkbox" id="buildInBoxes" checked>
+							Build in Start Box
+						</label>
+					</div>
+					<div class="option-desc">
+						If enabled, players can only build units inside of their team's start box. If disabled, they can build anywhere.
+					</div>
+				</div>
+				
+				<div class="option-row">
+					<div class="option-control">
+						<div class="input-group">
+							<label for="hillBuildRule">Build in Hill</label>
+							<select id="hillBuildRule" class="flat-select">
+								<option value="1">No One</option>
+								<option value="2" selected>Only the King</option>
+								<option value="3">Everyone</option>
+							</select>
+						</div>
+					</div>
+					<div class="option-desc">
+						Specifies who is allowed to build in the hill area. This option is independent of the 'Build in Start Box' option.
+					</div>
+				</div>
+
+				<div class="option-row">
+					<div class="option-control">
+						<div class="input-group">
+							<label for="winKingTime">King Win Time</label>
+							<input type="number" id="winKingTime" class="flat-input" value="360" step="1" min="1">
+						</div>
+					</div>
+					<div class="option-desc">
+						Specifies the total amount of seconds that a team must be king to win.
+					</div>
+				</div>
+				
+				<div class="option-row">
+					<div class="option-control">
+						<div class="input-group">
+							<label for="captureDelay">Capture Delay</label>
+							<input type="number" id="captureDelay" class="flat-input" value="15" step="1" min="1">
+						</div>
+					</div>
+					<div class="option-desc">
+						Specifies the total amount of seconds that a team must be in the hill to capture it.
+					</div>
+				</div>
+				
+				<div class="option-row">
+					<div class="option-control">
+						<label class="flat-checkbox">
+							<input type="checkbox" id="kingKeepsHill" checked>
+							King Keeps Hill
+						</label>
+					</div>
+					<div class="option-desc">
+						If checked, the king will keep the hill until he leaves. If unchecked, the king will keep the hill until someone else enters it or he leaves.
+					</div>
+				</div>
+				
+				<div class="option-row">
+					<div class="option-control">
+						<label class="flat-checkbox">
+							<input type="checkbox" id="noDamageInBoxes" checked>
+							Disable Damage in Start Box
+						</label>
+					</div>
+					<div class="option-desc">
+						If checked, the widget will attempt to prevent units from being damaged when they are in their own start box.
+					</div>
+				</div>
+				
+				<div class="option-row">
+					<div class="option-control">
+						<label class="flat-checkbox">
+							<input type="checkbox" id="explodeHillUnits" checked>
+							Explode Buildings in Hill
+						</label>
+					</div>
+					<div class="option-desc">
+						If enabled, buildings built in the hill will be self-destructed whenever the king loses the hill.
+					</div>
+				</div>
+
+			</div>
+		</div>
+		
+		<!-- Code Output Section -->
+        <div class="section-block">
+            <div class="subtitle">Tweak Defs Output</div>
+			<div class="output-container">
+				<div class="output-row">
+					<div class="output-control">
+						<div class="input-group">
+							<label for="outputType">Output Format</label>
+							<select id="outputType" class="flat-select">
+								<option value="lua">Lua</option>
+								<option value="base64">Base64</option>
+							</select>
+						</div>
+					</div>
+					<div class="output-desc">
+						Append Lua code onto your existing tweak defs before encoding or use stand-alone Base64 encoded output.
+						<div style="margin-top: 8px; font-size: 0.85rem; color: #aaa;">(You must keep the commented lines for it to work.)</div>
+					</div>
+				</div>
+				<div class="output-row" id="textarea-row">
+					<div class="output-control">
+						<div class="input-group">
+							<label for="output-textarea">Output</label>
+							<textarea id="output-textarea" readonly></textarea>
+						</div>
+					</div>
+				</div>
+			</div>
+        </div>
+    </div>
+	
+	<footer>Webpage 99% AI Generated</footer>
+	
+    <script src="configurator.js"></script>
+</body>
+</html>

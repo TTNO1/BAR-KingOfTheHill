@@ -1,0 +1,336 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Poppins', sans-serif;
+    padding: 0;
+    margin: 0;
+    background-image: linear-gradient(to bottom, #080606, #1d1d21, #080606);
+    color: white;
+    padding-bottom: 50px;
+}
+
+input, select, button {
+    font-family: 'Poppins', sans-serif;
+    color: inherit;
+}
+
+#logo {
+    text-align: center;
+    margin-top: 20px;
+}
+#logoImg {
+    width: 15vw;
+    min-width: 200px;
+}
+#logoSubtitle {
+    margin-top: 15px;
+    font-size: 20px;
+    text-transform: uppercase;
+}
+
+#mainContent {
+    max-width: 1200px;
+    margin: 50px auto 0 auto;
+    padding: 0 5vw;
+}
+
+.section-block {
+    margin-bottom: 40px;
+}
+
+.subtitle {
+    font-size: 24px;
+    text-transform: uppercase;
+    margin-bottom: 15px;
+}
+
+/* Custom Dropdown (From Provided Source) */
+.custom-dropdown {
+    position: relative;
+    width: 100%;
+    max-width: 24rem;
+    font-size: 1rem;
+}
+
+.dropdown-trigger {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.875rem;
+    border: 3px solid #535353;
+    cursor: pointer;
+    background: transparent;
+}
+
+.selected-thumb,
+.option-thumb {
+    width: 3rem;
+    height: 3rem;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.dropdown-search {
+    flex: 1;
+    width: 100%;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 1rem;
+    cursor: pointer;
+}
+.dropdown-search:focus {
+    cursor: text;
+}
+
+.dropdown-arrow {
+    font-size: 1rem;
+    pointer-events: none;
+}
+.custom-dropdown.open .dropdown-arrow {
+    transform: rotate(180deg);
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: calc(100% + 0.375rem);
+    left: 0;
+    right: 0;
+    max-height: 16rem;
+    overflow-y: auto;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border: 3px solid #535353;
+    background-color: #080606;
+    display: none;
+    z-index: 50;
+}
+.custom-dropdown.open .dropdown-menu {
+    display: block;
+}
+
+.dropdown-option {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.35rem 0.75rem;
+    cursor: pointer;
+}
+.dropdown-option:hover {
+    background-color: #232323;
+}
+.dropdown-option.is-hidden {
+    display: none;
+}
+.dropdown-loading {
+    padding: 1rem;
+    color: #aaa;
+}
+
+/* Map Display Container */
+#mapViewContainer {
+    position: relative;
+    width: 100%;
+    max-height: 70vh;
+    border: 3px solid #535353;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #000;
+}
+
+#mapImage {
+    display: block;
+    max-width: 100%;
+    max-height: 70vh;
+    object-fit: contain;
+}
+
+#startboxesContainer,
+#hillContainer {
+    position: absolute;
+    pointer-events: none;
+}
+
+/* Overlays */
+.startbox {
+    position: absolute;
+    background-color: rgba(66, 135, 245, 0.4);
+    border: 3px solid #4287f5;
+    pointer-events: none;
+}
+
+#hillContainer {
+    position: absolute;
+    background-color: rgba(245, 176, 66, 0.4);
+    border: 3px solid #f5b042;
+    pointer-events: auto;
+    cursor: grab;
+}
+#hillContainer:active {
+    cursor: grabbing;
+}
+#hillContainer.is-circle {
+    border-radius: 50%;
+}
+
+#hillResizeHandle {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 15px;
+    height: 15px;
+    background-color: white;
+    border: 2px solid #535353;
+    cursor: nwse-resize;
+}
+
+/* Grid & Form Elements (No border radius/shadows) */
+.config-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 30px;
+}
+
+.config-panel {
+    border: 3px solid #535353;
+    padding: 20px;
+}
+
+.flat-select, .flat-input {
+    width: 100%;
+    padding: 10px;
+    border: 3px solid #535353;
+    background-color: #080606;
+    font-size: 1rem;
+    outline: none;
+}
+.flat-select:focus, .flat-input:focus {
+    border-color: #aaa;
+}
+
+.flat-slider {
+    width: calc(100% - 40px);
+    vertical-align: middle;
+}
+#startboxSliderValue {
+    display: inline-block;
+    width: 30px;
+    text-align: right;
+}
+
+.options-container {
+    border: 3px solid #535353;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.option-row {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 30px;
+    align-items: center;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #232323;
+}
+
+.option-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.option-desc {
+    font-size: 1rem;
+    color: #aaaaaa;
+    line-height: 1.4;
+}
+
+/* Responsive collapse for smaller screens */
+@media (max-width: 768px) {
+    .option-row {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 1rem;
+    color: #ccc;
+}
+
+.flat-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.output-container {
+    border: 3px solid #535353;
+    padding: 20px;
+	display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.output-row {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 30px;
+    align-items: center;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #232323;
+}
+
+.output-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.output-desc {
+    font-size: 1rem;
+    color: #aaaaaa;
+    line-height: 1.4;
+}
+
+/* Responsive collapse for smaller screens */
+@media (max-width: 768px) {
+    .output-row {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+}
+
+#textarea-row {
+	grid-template-columns: 1fr;
+}
+
+#output-textarea {
+	background-color: transparent;
+	color: #cccccc;
+	width: 100%;
+	height: 18rem;
+	line-height: 1.4;
+	resize: vertical;
+	padding: 10px;
+    border: 3px solid #535353;
+    font-size: 0.9rem;
+    outline: none;
+	font-family: 'Google Sans Code', monospace;
+	background-color: #1e1e1e;
+}
+
+footer {
+	margin-top: 100px;
+    display: block;
+    text-align: center;
+    color: #929292;
+}
