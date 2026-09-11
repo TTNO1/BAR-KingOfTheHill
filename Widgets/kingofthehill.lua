@@ -101,7 +101,6 @@ local fps = Game.gameSpeed
 local vsx, vsy--view size x and y
 local gl = gl
 local GL = GL
-local VFS = VFS
 
 local tonumber = tonumber
 local math = math
@@ -138,23 +137,10 @@ local LINE_TYPE_SYSTEM = 5
 local kothWidgetVersion = 1
 
 -- the widget name used for logging
-local logWidgetName = "King of the Hill"
+local logWidgetName = "KOTH"
 
 -- the comment line in the tweak defs that surrounds the KOTH mod options table
 local tweakDefsModOptionsDelimiter = "--###KOTH_MODOPTIONS###"
-
--- hillBuildRule to string that is displayed in the additional info box for that build rule
-local hillBuildRuleAddInfoValueStrings = {
-	[1] = "No One",
-	[2] = "King Only",
-	[3] = "Everyone"
-}
-
--- mod option value to the string that is displayed in the additional info box for a boolean mod option with that value
-local booleanAddInfoValueStrings = {
-	[true] = "Yes",
-	[false] = "No"
-}
 
 -- the default list of capture-qualified units
 local defaultCaptureQualifiedUnitNames = {
@@ -223,26 +209,33 @@ local captureProgressBarTopMargin = 15
 --Defines the spacing in between the timers and progress bars relative to box width
 local timerLeftMargin = 0.05
 
---Defines the height of a line of text in the additional info box in pixels
-local addInfoTextHeight = 9
-
---Defines the vertical space between line of text in the additional info box in pixels
-local addInfoTextVerticalSpacing = 6
-
---Defines the vertical space between the ally team sections in the additional info box in pixels
-local addInfoAllyTeamVerticalSpacing = 10
-
---Defines the vertical space between sections of the additional info box in pixels
-local addInfoSectionVerticalSpacing = 15
+--Defines the vertical spacing of the items in the additional info box in pixels
+local addInfoVerticalSpacing = {
+	teamTextHeight = 17,--height of team name text lines
+	modOptionTextHeight = 15,--height of mod option text lines
+	teamMargin = 1,--space below team name
+	modOptionMargin = 0,--space below mod option lines
+	allyTeamMargin = 12,--space below an ally team group
+	sectionMargin = 25,--space below a section (team list section)
+}
 
 --Default font size of UI elements
-local defaultFontSize = 13
+local fontSizes = {
+	default = 13,
+	timers = 13,
+	addInfoTeamNames = 16,
+	addInfoModOptionNames = 13,
+	addInfoModOptionValues = 14,
+}
 
---The font color used for the timers next to the progress bars (rgba)
-local fontColorWhite = {1, 1, 1, 1}
-
---The font color used for disqualified teams' timers and the active player count (rgba)
-local fontColorFadedGray = {0.7, 0.7, 0.7, 0.5}
+local fontColors = {
+	white = {1, 1, 1, 1},
+	fadedGray = {0.7, 0.7, 0.7, 0.5},
+	lessFadedGray = {0.75, 0.75, 0.75, 0.7},
+	green = {0.12, 0.85, 0.12, 1},
+	yellow = {1, 0.97, 0, 1},
+	red = {0.92, 0.05, 0.05, 1},
+}
 
 --Defines the path to the font file for the text timers
 local exo2FontPath = "fonts/Exo2-Regular.otf"
@@ -602,6 +595,23 @@ local function log(level, msg)
 	Spring.Log(logWidgetName, level, msg)
 end
 
+--TODO remove
+-- Source - https://stackoverflow.com/a/27028488
+-- Posted by hookenz, modified by community. See post 'Timeline' for change history
+-- Retrieved 2026-09-05, License - CC BY-SA 4.0
+local function dump(o)
+   if type(o) == 'table' then
+      local s = '{ '
+      for k,v in pairs(o) do
+         if type(k) ~= 'number' then k = '"'..k..'"' end
+         s = s .. '['..k..'] = ' .. dump(v) .. ','
+      end
+      return s .. '} '
+   else
+      return tostring(o)
+   end
+end
+
 -- /////////////////////////////
 -- #endregion
 -- /////////////////////////////
@@ -652,7 +662,7 @@ local shouldDrawStartBoxes
 -- #region Main Variables
 
 -- whether GameStart has been called
-local gameStarted = false
+local gameStarted = getGameFrame() > 0
 
 -- the last frame number that was passed into the GameFrame callin
 local lastGameFrame = -1
@@ -663,11 +673,11 @@ local teamToAllyTeam = {}
 -- playerId to allyTeamId for all players
 local playerToAllyTeam = {}
 
--- playerId to teamId for all players
-local playerToTeam = {}
-
 -- teamId to playerId (should only be one player per team)
 local teamToPlayer = {}
+
+-- playerId to teamId
+local playerToTeam ={}
 
 -- array of allyTeamIds
 local allyTeams = {}
@@ -675,14 +685,14 @@ local allyTeams = {}
 -- allyTeamId to index in allyTeams
 local allyTeamIndices = {}
 
--- allyTeamId to set of players
-local allyTeamToPlayers = MultiMap.new()
-
--- set of all players
-local players = Set.new()
+-- MultiMap of allyTeamId to set of teams
+local allyTeamToTeams = MultiMap.new()
 
 -- the number of ally teams
 local numAllyTeams = 0
+
+-- the total number of teams
+local numTeams = 0
 
 -- allyTeamId to RectMapArea defining the allyTeam's starting area
 local startBoxes = {}
@@ -731,7 +741,7 @@ local capturingCompleteFrame = 0
 
 -- specifies the direction in which capturing progress is being made
 -- true = up = progressing toward capturing the hill, false = down = losing progress that was previously made
-local capturingCountingUp
+local capturingCountingUp = false
 
 -- a set of units that are currently counting down to be self-destructed. Used to block the user from
 -- stopping a widget-issued self-destruct command
@@ -945,7 +955,7 @@ local playerUpdates = NestedMap.new()
 -- ------------
 
 --Constants
-local flowUIDraw
+local flowUIDrawElement
 
 --Contains the position of the UI box. Used for WG API function 'GetPosition'
 local uiBoxPosition
@@ -992,14 +1002,12 @@ local captureProgressTimer
 -- The UIElement for the box containing additional information
 local addInfoBoxElement
 
--- playerId to the UITextElement for that player's name in the additional info UI box
-local playerAddInfoNameTexts = {}
+-- teamId to the UITextElement for that team's name in the additional info UI box
+local teamAddInfoNameTexts = {}
 
--- The UITextElements for the mod options shown in the additional info box
-local hillBuildRuleAddInfoText
-local kingKeepsHillAddInfoText
-local noDamageInBoxesAddInfoText
-local explodeHillUnitsAddInfoText
+-- Arrays of UITextElements for the mod options shown in the additional info box
+local modOptionNameAddInfoTexts = {}
+local modOptionValueAddInfoTexts = {}
 
 -- The font used for the text timers
 local exo2Font
@@ -1179,7 +1187,7 @@ end
 function UIElement:updateData()
 	gl.DeleteList(self.displayList)
 	self.displayList = gl.CreateList(function ()
-		flowUIDraw.Element(self.absLeft, self.absBottom, self.absRight, self.absTop, self.cornerTL, self.cornerTR, self.cornerBR, self.cornerBL, self.ptl, self.ptr, self.pbr, self.pbl,  self.opacity, self.color1, self.color2, self.bgpadding)
+		flowUIDrawElement(self.absLeft, self.absBottom, self.absRight, self.absTop, self.cornerTL, self.cornerTR, self.cornerBR, self.cornerBL, self.ptl, self.ptr, self.pbr, self.pbl, self.opacity, self.color1, self.color2, self.bgpadding)
 	end)
 	self.dataInvalid = false
 end
@@ -1502,10 +1510,10 @@ function UITextElement.new(args)
 		error("Missing one or more arguments for new UITextElement", 2)
 	end
 	
-	args.fontSize = args.fontSize or defaultFontSize
-	args.color = args.color or fontColorWhite
+	args.fontSize = args.fontSize or fontSizes.default
+	args.color = args.color or fontColors.white
 	args.onColor = args.onColor or args.color
-	args.offColor = args.offColor or fontColorFadedGray
+	args.offColor = args.offColor or fontColors.fadedGray
 	args.fontFlags = args.fontFlags or "v"
 	
 	if not getmetatable(args) then
@@ -1550,6 +1558,7 @@ function UITextTimer.new(args)
 	end
 	
 	args.text = args.text or "--:--"
+	args.fontSize = args.fontSize or fontSizes.timers
 	args.currentTimeSecs = ceil(args.totalTimeSecs)
 	
 	if not getmetatable(args) then
@@ -1593,13 +1602,36 @@ end
 -- #endregion
 --///////////////
 
--- Returns the player name for the given playerId if the playernames widget is available, nil otherwise
+-- Returns the name of the player if the playernames widget is available, otherwise returns "PlayerID: <playerId>"
 local function getPlayerName(playerId)
 	local playerNames = WG.playernames
 	if playerNames then
-		return playerNames.getPlayername(playerId)
+		local playerName = playerNames.getPlayername(playerId)
+		if playerName then
+			return playerName
+		end
 	end
-	return nil
+	return "PlayerID: " .. tostring(playerId)
+end
+
+-- Returns the player name of the player on the team if it is not an ai team and the playernames widget is available,
+-- otherwise returns the AI name if there is an AI on the team, otherwise returns "TeamID: <teamId>"
+local function getTeamName(teamId)
+	local playerId = teamToPlayer[teamId]
+	if playerId then
+		local playerNames = WG.playernames
+		if playerNames then
+			local playerName = playerNames.getPlayername(playerId)
+			if playerName then
+				return playerName
+			end
+		end
+	end
+	local aiName = Spring.GetGameRulesParam("ainame_" .. teamId) or select(4, Spring.GetAIInfo(teamId))
+	if aiName then
+		return BAR.I18N("ui.playersList.aiName", {name = aiName}) or aiName
+	end
+	return "TeamID: " .. tostring(teamId)
 end
 
 -- Adds the chat line if WG.chat is available.
@@ -1632,33 +1664,33 @@ end
 local function loadModOptions()
 	
 	if type(KOTHModoptions) ~= "table" then
-		log("warn", "Tweak defs mod options code did not set global 'KOTHModoptions' to a table value; resorting to default mod options")
+		log("warning", "Tweak defs mod options code did not set global 'KOTHModoptions' to a table value; resorting to default mod options")
 		KOTHModoptions = defaultModOptions
 	end
 	
 	if type(KOTHModoptions.captureQualifiedUnitNames) ~= "table" then
-		log("warn", "KOTHModoptions table does not contain a key 'captureQualifiedUnitNames' that maps to a table value; resorting to default capture-qualified units")
+		log("warning", "KOTHModoptions table does not contain a key 'captureQualifiedUnitNames' that maps to a table value; resorting to default capture-qualified units")
 		KOTHModoptions.captureQualifiedUnitNames = defaultModOptions.captureQualifiedUnitNames
 	end
 	local loadCaptureQualifiedUnits = function()
 		for _, unitName in ipairs(KOTHModoptions.captureQualifiedUnitNames) do
-			local unitDefId = UnitDefNames[unitName]
-			if unitDefId then
-				captureQualifiedUnitDefIds:add(unitDefId)
+			local unitDef = UnitDefNames[unitName]
+			if unitDef then
+				captureQualifiedUnitDefIds:add(unitDef.id)
 			else
-				log("warn", "Unrecognized capture-qualified unit name: " .. unitName .. "; ignoring")
+				log("warning", "Unrecognized capture-qualified unit name: " .. unitName .. "; ignoring")
 			end
 		end
 	end
 	loadCaptureQualifiedUnits()
 	if captureQualifiedUnitDefIds.size == 0 then
-		log("warn", "No valid capture-qualified units were found; resorting to default capture-qualified units")
+		log("warning", "No valid capture-qualified units were found; resorting to default capture-qualified units")
 		KOTHModoptions.captureQualifiedUnitNames = defaultModOptions.captureQualifiedUnitNames
 		loadCaptureQualifiedUnits()
 	end
 	
 	if type(KOTHModoptions.hillAreaArgs) ~= "table" then
-		log("warn", "KOTHModoptions table does not contain a key 'hillAreaArgs' that maps to a table value; resorting to default hill area")
+		log("warning", "KOTHModoptions table does not contain a key 'hillAreaArgs' that maps to a table value; resorting to default hill area")
 		KOTHModoptions.hillAreaArgs = defaultModOptions.hillAreaArgs
 	end
 	
@@ -1666,24 +1698,24 @@ local function loadModOptions()
 		for _, key in ipairs({"left", "top", "right", "bottom"}) do
 			local value = KOTHModoptions.hillAreaArgs[key]
 			if type(value) ~= "number" then
-				log("warn", "Table 'hillAreaArgs' in KOTHModoptions does not contain a key '" .. key .. "' that maps to a number value; resorting to default hill area")
+				log("warning", "Table 'hillAreaArgs' in KOTHModoptions does not contain a key '" .. key .. "' that maps to a number value; resorting to default hill area")
 				KOTHModoptions.hillAreaArgs = defaultModOptions.hillAreaArgs
 				break
 			end
 			if value < 0 or value > 1 then
-				log("warn", "The value of '" .. key .. "' in 'hillAreaArgs' is out of the range [0, 1]; these values should be proportions of the map size; ignoring")
+				log("warning", "The value of '" .. key .. "' in 'hillAreaArgs' is out of the range [0, 1]; these values should be proportions of the map size; ignoring")
 			end
 		end
 	elseif KOTHModoptions.hillAreaArgs.type == "circle" then
 		for _, key in ipairs({"x", "z", "radius"}) do
 			local value = KOTHModoptions.hillAreaArgs[key]
 			if type(value) ~= "number" then
-				log("warn", "Table 'hillAreaArgs' in KOTHModoptions does not contain a key '" .. key .. "' that maps to a number value; resorting to default hill area")
+				log("warning", "Table 'hillAreaArgs' in KOTHModoptions does not contain a key '" .. key .. "' that maps to a number value; resorting to default hill area")
 				KOTHModoptions.hillAreaArgs = defaultModOptions.hillAreaArgs
 				break
 			end
 			if value < 0 or value > 1 then
-				log("warn", "The value of '" .. key .. "' in 'hillAreaArgs' is out of the range [0, 1]; these values should be proportions of the map size; ignoring")
+				log("warning", "The value of '" .. key .. "' in 'hillAreaArgs' is out of the range [0, 1]; these values should be proportions of the map size; ignoring")
 			end
 		end
 	else
@@ -1704,7 +1736,7 @@ local function loadModOptions()
 	
 	local validateBoolean = function(key)
 		if type(KOTHModoptions[key]) ~= "boolean" then
-			log("warn", "KOTHModoptions table does not contain a key '" .. key .. "' that maps to a boolean value; resorting to default " .. key)
+			log("warning", "KOTHModoptions table does not contain a key '" .. key .. "' that maps to a boolean value; resorting to default " .. key)
 			KOTHModoptions[key] = defaultModOptions[key]
 		end
 		return KOTHModoptions[key]
@@ -1713,7 +1745,7 @@ local function loadModOptions()
 	buildOutsideBoxes = validateBoolean("buildOutsideBoxes")
 	
 	if type(KOTHModoptions.hillBuildRule) ~= "number" or KOTHModoptions.hillBuildRule ~= floor(KOTHModoptions.hillBuildRule) or KOTHModoptions.hillBuildRule < 1 or KOTHModoptions.hillBuildRule > 3 then
-		log("warn", "KOTHModoptions table does not contain a key 'hillBuildRule' that maps to an integer value in the range [1, 3]; resorting to default hillBuildRule")
+		log("warning", "KOTHModoptions table does not contain a key 'hillBuildRule' that maps to an integer value in the range [1, 3]; resorting to default hillBuildRule")
 		KOTHModoptions.hillBuildRule = defaultModOptions.hillBuildRule
 	end
 	hillBuildRule = KOTHModoptions.hillBuildRule
@@ -1721,11 +1753,11 @@ local function loadModOptions()
 	local oneFrameMilliseconds = 1000/fps--1 frame in milliseconds
 	local validateDurationMilliseconds = function(key)
 		if type(KOTHModoptions[key]) ~= "number" or KOTHModoptions[key] < 0 then
-			log("warn", "KOTHModoptions table does not contain a key '" .. key .. "' that maps to a positive number value; resorting to default " .. key)
+			log("warning", "KOTHModoptions table does not contain a key '" .. key .. "' that maps to a positive number value; resorting to default " .. key)
 			KOTHModoptions[key] = defaultModOptions[key]
 		end
 		if KOTHModoptions[key] < oneFrameMilliseconds then
-			log("warn", "The value of '" .. key .. "' in KOTHModoptions is below 1 frame; resorting to 1 frame")
+			log("warning", "The value of '" .. key .. "' in KOTHModoptions is below 1 frame; resorting to 1 frame")
 			KOTHModoptions[key] = oneFrameMilliseconds
 		end
 		return KOTHModoptions[key], floor(fps*KOTHModoptions[key]/1000 + 0.5)
@@ -1813,7 +1845,7 @@ function widget:Initialize()
 			startBoxes[allyTeamId] = startBox
 			
 			local red, green, blue = 0, 0, 0
-			local numTeams = 0
+			local numTeamsOnAllyTeam = 0
 			
 			for _, teamId in ipairs(Spring.GetTeamList(allyTeamId)) do
 				teamToAllyTeam[teamId] = allyTeamId
@@ -1823,23 +1855,26 @@ function widget:Initialize()
 				red = red + teamRed ^ 2
 				green = green + teamGreen ^ 2
 				blue = blue + teamBlue ^ 2
-				numTeams = numTeams + 1
+				numTeamsOnAllyTeam = numTeamsOnAllyTeam + 1
+				allyTeamToTeams:put(allyTeamId, teamId)
 				
-				-- populate cache maps
-				for _, playerId in ipairs(Spring.GetPlayerList(teamId, true)) do
+				local _, playerId, _, hasAI = Spring.GetTeamInfo(teamId, false)
+				
+				if not hasAI then
 					playerToAllyTeam[playerId] = allyTeamId
-					playerToTeam[playerId] = teamId
 					teamToPlayer[teamId] = playerId
-					allyTeamToPlayers:put(allyTeamId, playerId)
-					players:add(playerId)
-					playerAddInfoNameTexts[playerId] = UITextElement.new({text = getPlayerName(playerId), color = {teamRed, teamGreen, teamBlue, 1}, parent = addInfoBoxElement})
-					playerAddInfoNameTexts[playerId]:setColorOnOff(false)
+					playerToTeam[playerId] = teamId
 					latestReceivedFrames[playerId] = -framesPerUpdate-- first update will put it at zero
 				end
+				
+				teamAddInfoNameTexts[teamId] = UITextElement.new({text = getTeamName(teamId), color = {teamRed, teamGreen, teamBlue, 1}, offColor = fontColors.lessFadedGray, fontFlags = "vo", fontSize = fontSizes.addInfoTeamNames, parent = addInfoBoxElement})
+				teamAddInfoNameTexts[teamId]:setColorOnOff(false)
 			end
 			
+			numTeams = numTeams + numTeamsOnAllyTeam
+			
 			-- r g b a = 1 2 3 4
-			local averageColor = {math.sqrt(red/numTeams), math.sqrt(green/numTeams), math.sqrt(blue/numTeams), 1}
+			local averageColor = {math.sqrt(red/numTeamsOnAllyTeam), math.sqrt(green/numTeamsOnAllyTeam), math.sqrt(blue/numTeamsOnAllyTeam), 1}
 			allyTeamColors[allyTeamId] = averageColor
 			
 			allyTeamProgressBars[allyTeamId] = UIBar.new({allyTeam = allyTeamId, parent = uiBoxElement})
@@ -1858,17 +1893,30 @@ function widget:Initialize()
 	captureProgressBar = UIBar.new({flags = UIBar.Flags.CAPTURE_BAR, parent = uiBoxElement})
 	captureProgressTimer = UITextTimer.new({totalTimeSecs = captureDelay/1000, parent = uiBoxElement})
 	
-	hillBuildRuleAddInfoText = UITextElement.new({text = "Hill Build Rule: " .. hillBuildRuleAddInfoValueStrings[hillBuildRule], parent = addInfoBoxElement})
-	hillBuildRuleAddInfoText:setColorOnOff(false)
+	local hillBuildRuleAddInfoValues = {
+		[1] = {text = "No One", color = fontColors.red},
+		[2] = {text = "King Only", color = fontColors.yellow},
+		[3] = {text = "Everyone", color = fontColors.green}
+	}
 	
-	kingKeepsHillAddInfoText = UITextElement.new({text = "King Keeps Hill: " .. booleanAddInfoValueStrings[kingKeepsHill], parent = addInfoBoxElement})
-	kingKeepsHillAddInfoText:setColorOnOff(false)
+	local booleanAddInfoValues = {
+		[true] = {text = "Yes", color = fontColors.green},
+		[false] = {text = "No", color = fontColors.red}
+	}
 	
-	explodeHillUnitsAddInfoText = UITextElement.new({text = "Hill Buildings Explode: " .. hillBuildRuleAddInfoValueStrings[explodeHillUnits], parent = addInfoBoxElement})
-	explodeHillUnitsAddInfoText:setColorOnOff(false)
+	modOptionNameAddInfoTexts = {
+		UITextElement.new({text = "Hill Build Rule: ", fontSize = fontSizes.addInfoModOptionNames, parent = addInfoBoxElement}),
+		UITextElement.new({text = "King Keeps Hill: ", fontSize = fontSizes.addInfoModOptionNames, parent = addInfoBoxElement}),
+		UITextElement.new({text = "Hill Buildings Explode: ", fontSize = fontSizes.addInfoModOptionNames, parent = addInfoBoxElement}),
+		UITextElement.new({text = "Immune in Start Box: ", fontSize = fontSizes.addInfoModOptionNames, parent = addInfoBoxElement})
+	}
 	
-	noDamageInBoxesAddInfoText = UITextElement.new({text = "Immune in Start Box: " .. hillBuildRuleAddInfoValueStrings[noDamageInBoxes], parent = addInfoBoxElement})
-	noDamageInBoxesAddInfoText:setColorOnOff(false)
+	modOptionValueAddInfoTexts = {
+		UITextElement.new({text = hillBuildRuleAddInfoValues[hillBuildRule].text, color = hillBuildRuleAddInfoValues[hillBuildRule].color, fontFlags = "vro", fontSize = fontSizes.addInfoModOptionValues, parent = addInfoBoxElement}),
+		UITextElement.new({text = booleanAddInfoValues[kingKeepsHill].text, color = booleanAddInfoValues[kingKeepsHill].color, fontFlags = "vro", fontSize = fontSizes.addInfoModOptionValues, parent = addInfoBoxElement}),
+		UITextElement.new({text = booleanAddInfoValues[explodeHillUnits].text, color = booleanAddInfoValues[explodeHillUnits].color, fontFlags = "vro", fontSize = fontSizes.addInfoModOptionValues, parent = addInfoBoxElement}),
+		UITextElement.new({text = booleanAddInfoValues[noDamageInBoxes].text, color = booleanAddInfoValues[noDamageInBoxes].color, fontFlags = "vro", fontSize = fontSizes.addInfoModOptionValues, parent = addInfoBoxElement})
+	}
 	
 	-- fill in extra space in uniform arrays
 	for i = numAllyTeams * 4 + 1, fragmentShaderMaxTeams * 4, 1 do
@@ -1903,6 +1951,11 @@ function widget:Initialize()
 			return {addInfoBoxPosition.top, addInfoBoxPosition.left, addInfoBoxPosition.bottom, addInfoBoxPosition.right, addInfoBoxPosition.scale}
 		end
 	end
+	
+	activePlayers:add(myPlayerId)--TODO consider moving to dry function
+	local newActivePlayerCount = allyTeamActivePlayerCount[myAllyTeam] + 1
+	allyTeamActivePlayerCount[myAllyTeam] = newActivePlayerCount
+	teamAddInfoNameTexts[myTeam]:setColorOnOff(true)
 	
 	VersionInitUIPacket.new():send()
 	
@@ -1950,15 +2003,17 @@ local function updateUIBoxPosition()
 								(2 * scaledBoxVerticalPadding) - scaledBarVerticalSpacing +
 								scaledCaptureBarTopMargin + scaledCaptureBarHeight
 	
-	local scaledAddInfoTextHeight = ceil(addInfoTextHeight * scale)
-	local scaledAddInfoTextVerticalSpacing = ceil(addInfoTextVerticalSpacing * scale)
-	local scaledAddInfoAllyTeamVerticalSpacing = ceil(addInfoAllyTeamVerticalSpacing * scale)
-	local scaledAddInfoSectionVerticalSpacing = ceil(addInfoSectionVerticalSpacing * scale)
-	local scaledAddInfoUIBoxHeight = ((scaledAddInfoTextHeight + scaledAddInfoTextVerticalSpacing) * (players.size - numAllyTeams)) +
+	local scaledAddInfoTeamTextHeight = ceil(addInfoVerticalSpacing.teamTextHeight * scale)
+	local scaledAddInfoModOptionTextHeight = ceil(addInfoVerticalSpacing.modOptionTextHeight * scale)
+	local scaledAddInfoTeamVerticalSpacing = ceil(addInfoVerticalSpacing.teamMargin * scale)
+	local scaledAddInfoModOptionVerticalSpacing = ceil(addInfoVerticalSpacing.modOptionMargin * scale)
+	local scaledAddInfoAllyTeamVerticalSpacing = ceil(addInfoVerticalSpacing.allyTeamMargin * scale)
+	local scaledAddInfoSectionVerticalSpacing = ceil(addInfoVerticalSpacing.sectionMargin * scale)
+	local scaledAddInfoUIBoxHeight = (scaledAddInfoTeamTextHeight * numTeams) + (scaledAddInfoTeamVerticalSpacing * (numTeams - numAllyTeams)) +
 										(scaledAddInfoAllyTeamVerticalSpacing * (numAllyTeams - 1)) +
 										scaledAddInfoSectionVerticalSpacing +
-										((scaledAddInfoTextHeight + scaledAddInfoTextVerticalSpacing) * 4) -
-										scaledAddInfoTextVerticalSpacing
+										((scaledAddInfoModOptionTextHeight + scaledAddInfoModOptionVerticalSpacing) * 4) -
+										scaledAddInfoModOptionVerticalSpacing + (2 * scaledBoxVerticalPadding)
 	
 	uiBoxPosition = {
 		left = left,
@@ -1987,8 +2042,11 @@ local function updateUIBoxPosition()
 	local relativeBarVerticalSpacing = scaledBarVerticalSpacing / uiBoxPosition.height
 	local relativeBoxVerticalPadding = scaledBoxVerticalPadding / uiBoxPosition.height
 	
-	local relativeAddInfoTextHeight = scaledAddInfoTextHeight / addInfoBoxPosition.height
-	local relativeAddInfoTextVerticalSpacing = scaledAddInfoTextVerticalSpacing / addInfoBoxPosition.height
+	local relativeAddInfoVerticalPadding = scaledBoxVerticalPadding / addInfoBoxPosition.height
+	local relativeAddInfoTeamTextHeight = scaledAddInfoTeamTextHeight / addInfoBoxPosition.height
+	local relativeAddInfoModOptionTextHeight = scaledAddInfoModOptionTextHeight / addInfoBoxPosition.height
+	local relativeAddInfoTeamVerticalSpacing = scaledAddInfoTeamVerticalSpacing / addInfoBoxPosition.height
+	local relativeAddInfoModOptionVerticalSpacing = scaledAddInfoModOptionVerticalSpacing / addInfoBoxPosition.height
 	local relativeAddInfoAllyTeamVerticalSpacing = scaledAddInfoAllyTeamVerticalSpacing / addInfoBoxPosition.height
 	local relativeAddInfoSectionVerticalSpacing = scaledAddInfoSectionVerticalSpacing / addInfoBoxPosition.height
 	
@@ -2026,30 +2084,38 @@ local function updateUIBoxPosition()
 		right = 1 - uiBoxHorizontalPadding
 	})
 	
-	local textTopRelCoord = 1 - relativeBoxVerticalPadding
+	local textTopRelCoord = 1 - relativeAddInfoVerticalPadding
 	for _, allyTeamId in ipairs(allyTeams) do
-		local allyTeamPlayers = allyTeamToPlayers:getAll(allyTeamId)
-		for playerId in allyTeamPlayers:iter() do
-			playerAddInfoNameTexts[playerId]:setPos({
+		local allyTeamTeams = allyTeamToTeams:get(allyTeamId)
+		for teamId in allyTeamTeams:iter() do
+			teamAddInfoNameTexts[teamId]:setPos({
 				top = textTopRelCoord,
-				bottom = textTopRelCoord - relativeAddInfoTextHeight,
+				bottom = textTopRelCoord - relativeAddInfoTeamTextHeight,
 				left = uiBoxHorizontalPadding,
 				right = 1 - uiBoxHorizontalPadding
 			})
-			textTopRelCoord = textTopRelCoord - relativeAddInfoTextHeight - relativeAddInfoTextVerticalSpacing
+			textTopRelCoord = textTopRelCoord - relativeAddInfoTeamTextHeight - relativeAddInfoTeamVerticalSpacing
 		end
-		textTopRelCoord = textTopRelCoord + relativeAddInfoTextVerticalSpacing - relativeAddInfoAllyTeamVerticalSpacing
+		textTopRelCoord = textTopRelCoord + relativeAddInfoTeamVerticalSpacing - relativeAddInfoAllyTeamVerticalSpacing
 	end
 	
 	textTopRelCoord = textTopRelCoord + relativeAddInfoAllyTeamVerticalSpacing - relativeAddInfoSectionVerticalSpacing
-	for _, textElement in ipairs({hillBuildRuleAddInfoText, kingKeepsHillAddInfoText, explodeHillUnitsAddInfoText, noDamageInBoxesAddInfoText}) do
-		textElement:setPos({
+	for i = 1, #modOptionNameAddInfoTexts do
+		local nameTextElement = modOptionNameAddInfoTexts[i]
+		local valueTextElement = modOptionValueAddInfoTexts[i]
+		nameTextElement:setPos({
 			top = textTopRelCoord,
-			bottom = textTopRelCoord - relativeAddInfoTextHeight,
+			bottom = textTopRelCoord - relativeAddInfoModOptionTextHeight,
 			left = uiBoxHorizontalPadding,
+			right = 0.5
+		})
+		valueTextElement:setPos({
+			top = textTopRelCoord,
+			bottom = textTopRelCoord - relativeAddInfoModOptionTextHeight,
+			left = 1 - uiBoxHorizontalPadding,-- right justified font draws from the left side of the box
 			right = 1 - uiBoxHorizontalPadding
 		})
-		textTopRelCoord = textTopRelCoord - relativeAddInfoTextHeight - relativeAddInfoTextVerticalSpacing
+		textTopRelCoord = textTopRelCoord - relativeAddInfoModOptionTextHeight - relativeAddInfoModOptionVerticalSpacing
 	end
 	
 end
@@ -2066,7 +2132,7 @@ end
 function widget:ViewResize(vs_x, vs_y)
 	vsx = vs_x
 	vsy = vs_y
-	flowUIDraw = WG.FlowUI.Draw
+	flowUIDrawElement = WG.FlowUI.Draw.Element
 	exo2Font = WG.fonts.getFont(exo2FontPath)
 	-- Call here as well as in widget:DrawScreen because I have no idea the order
 	-- of other widgets resizing so we want the best chance of getting it right
@@ -2089,7 +2155,9 @@ end
 -- Used to queue the player for deactivation, resize the ui box because the player list box below changes
 -- size, and update myAllyTeam and myStartBox
 function widget:PlayerChanged(playerID)
-	playerDeactivationUpdates:put(getNextUpdateFrame(getGameFrame()), playerID)
+	if gameStarted then--PlayerChanged is called when a player joins
+		playerDeactivationUpdates:put(getNextUpdateFrame(getGameFrame()), playerID)
+	end
 	triggerUIBoxResize()
 	if playerID == myPlayerId then
 		myAllyTeam = Spring.GetMyAllyTeamID()
@@ -2109,7 +2177,6 @@ function widget:PlayerAdded(playerID)
 	
 	local _, _, _, teamId, allyTeamId = Spring.GetPlayerInfo(playerID)
 	playerToAllyTeam[playerID] = allyTeamId
-	playerToTeam[playerID] = teamId
 	triggerUIBoxResize()
 end
 
@@ -2209,7 +2276,7 @@ local function deactivatePlayer(playerId, updateFrame)
 		numReceivedPlayers[f] = numReceivedPlayers[f] - 1
 	end
 	
-	playerAddInfoNameTexts[playerId]:setColorOnOff(false)
+	teamAddInfoNameTexts[playerToTeam[playerId]]:setColorOnOff(false)
 	
 	local allyTeam = playerToAllyTeam[playerId]
 	local newAllyTeamActiveCount = allyTeamActivePlayerCount[allyTeam] - 1
@@ -2232,7 +2299,7 @@ end
 -- Receives messages from unsynced sent via Spring.SendLuaUIMsg
 function widget:RecvLuaMsg(msg, playerId)
 	
-	if not activePlayers:contains(playerId) then
+	if playerId == myPlayerId or not activePlayers:contains(playerId) then
 		return
 	end
 	
@@ -2278,7 +2345,7 @@ function widget:RecvLuaMsg(msg, playerId)
 				local allyTeam = playerToAllyTeam[playerId]
 				local newActivePlayerCount = allyTeamActivePlayerCount[allyTeam] + 1
 				allyTeamActivePlayerCount[allyTeam] = newActivePlayerCount
-				playerAddInfoNameTexts[playerId]:setColorOnOff(true)
+				teamAddInfoNameTexts[playerToTeam[playerId]]:setColorOnOff(true)
 				addChatLine(getGameFrame(), getPlayerName(playerId) .. " has been added to the KOTH session.")
 			end
 		else
@@ -2399,7 +2466,8 @@ function widget:GameFrame(frame)-- Note: first frame = 0
 			playerDeactivationUpdates:removeAll(updateFrame)
 		end
 		
-		if numReceivedPlayers[updateFrame] < activePlayers.size then
+		local receivedPlayersForUpdate = numReceivedPlayers[updateFrame]
+		if not receivedPlayersForUpdate or receivedPlayersForUpdate < activePlayers.size then
 			break
 		end
 		
@@ -2489,14 +2557,14 @@ function widget:DrawScreen()
 		
 		addInfoBoxElement:drawFrame()
 		
-		for _, nameText in pairs(playerAddInfoNameTexts) do
+		for _, nameText in pairs(teamAddInfoNameTexts) do
 			nameText:drawFrame()
 		end
 		
-		hillBuildRuleAddInfoText:drawFrame()
-		kingKeepsHillAddInfoText:drawFrame()
-		explodeHillUnitsAddInfoText:drawFrame()
-		noDamageInBoxesAddInfoText:drawFrame()
+		for i = 1, #modOptionNameAddInfoTexts do
+			modOptionNameAddInfoTexts[i]:drawFrame()
+			modOptionValueAddInfoTexts[i]:drawFrame()
+		end
 		
 	end
 	
@@ -2682,13 +2750,13 @@ end
 
 function widget:Shutdown()
 	
-	destroyHillBuildings()
-	
-	SelfDeactivationUIPacket.new({frame = getNextUpdateFrame(latestReceivedFrames[myPlayerId])}):send()
-	
 	gl.DeleteShader(progressBarShader)
 	gl.DeleteShader(mapAreaShader)
 	
 	WG.kingofthehill = nil
+	
+	destroyHillBuildings()
+	
+	SelfDeactivationUIPacket.new({frame = getNextUpdateFrame(latestReceivedFrames[myPlayerId] or -framesPerUpdate)}):send()
 	
 end
