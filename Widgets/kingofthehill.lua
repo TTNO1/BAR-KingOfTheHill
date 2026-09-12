@@ -211,11 +211,9 @@ local timerLeftMargin = 0.05
 
 --Defines the vertical spacing of the items in the additional info box in pixels
 local addInfoVerticalSpacing = {
-	teamTextHeight = 17,--height of team name text lines
-	modOptionTextHeight = 15,--height of mod option text lines
-	teamMargin = 1,--space below team name
-	modOptionMargin = 0,--space below mod option lines
-	allyTeamMargin = 12,--space below an ally team group
+	teamMargin = 7,--space below team name
+	modOptionMargin = 4,--space below mod option lines
+	allyTeamMargin = 15,--space below an ally team group
 	sectionMargin = 25,--space below a section (team list section)
 }
 
@@ -237,8 +235,11 @@ local fontColors = {
 	red = {0.92, 0.05, 0.05, 1},
 }
 
---Defines the path to the font file for the text timers
+--Defines the path to the regular font file
 local exo2FontPath = "fonts/Exo2-Regular.otf"
+
+--Defines the path to the semi-bold font file
+local exo2SemiBoldFontPath = "fonts/Exo2-SemiBold.otf"
 
 --Progress bar shader file paths
 local progressBarVertexShaderPath = "LuaUI/Shaders/kingofthehillui.vert.glsl"
@@ -1003,14 +1004,16 @@ local captureProgressTimer
 local addInfoBoxElement
 
 -- teamId to the UITextElement for that team's name in the additional info UI box
-local teamAddInfoNameTexts = {}
+local teamNameAddInfoTexts = {}
 
 -- Arrays of UITextElements for the mod options shown in the additional info box
 local modOptionNameAddInfoTexts = {}
 local modOptionValueAddInfoTexts = {}
 
--- The font used for the text timers
-local exo2Font
+-- The regular font
+local exo2Font = WG.fonts.getFont(exo2FontPath)
+-- The semi-bold font
+local exo2SemiBoldFont = WG.fonts.getFont(exo2SemiBoldFontPath)
 
 -- Used to update the position of the UI box multiple times after the screen is resized
 -- since the ordering of the size updates from the lower widgets is unknown to me
@@ -1179,7 +1182,6 @@ function UIElement:draw()
 end
 -- updates the position data of the UI element (i.e. VBO vertices)
 function UIElement:updatePosition()
-	self:computeAbsoluteRect()
 	self:updateData()
 	self.positionInvalid = false
 end
@@ -1187,7 +1189,7 @@ end
 function UIElement:updateData()
 	gl.DeleteList(self.displayList)
 	self.displayList = gl.CreateList(function ()
-		flowUIDrawElement(self.absLeft, self.absBottom, self.absRight, self.absTop, self.cornerTL, self.cornerTR, self.cornerBR, self.cornerBL, self.ptl, self.ptr, self.pbr, self.pbl, self.opacity, self.color1, self.color2, self.bgpadding)
+		flowUIDrawElement(self.left, self.bottom, self.right, self.top, self.cornerTL, self.cornerTR, self.cornerBR, self.cornerBL, self.ptl, self.ptr, self.pbr, self.pbl, self.opacity, self.color1, self.color2, self.bgpadding)
 	end)
 	self.dataInvalid = false
 end
@@ -1215,26 +1217,8 @@ function UIElement:setPos(args)
 	self.height = self.top - self.bottom
 	self:invalidatePosition()
 end
--- computes the absolute pixel coordinates of this UI element
-function UIElement:computeAbsoluteRect()
-	if self.parent then
-		self.absLeft = self.parent.absLeft + (self.parent.absWidth * self.left)
-		self.absRight = self.parent.absLeft + (self.parent.absWidth * self.right)
-		self.absBottom = self.parent.absBottom + (self.parent.absHeight * self.bottom)
-		self.absTop = self.parent.absBottom + (self.parent.absHeight * self.top)
-		self.absWidth = self.absRight - self.absLeft
-		self.absHeight = self.absTop - self.absBottom
-	else
-		self.absLeft = self.left
-		self.absRight = self.right
-		self.absBottom = self.bottom
-		self.absTop = self.top
-		self.absWidth = self.width
-		self.absHeight = self.height
-	end
-end
 function UIElement:isPointInside(x, y)
-	return x >= self.absLeft and x <= self.absRight and y >= self.absBottom and y <= self.absTop
+	return x >= self.left and x <= self.right and y >= self.bottom and y <= self.top
 end
 
 -- A class for each UI progress bar
@@ -1273,12 +1257,11 @@ function UIBar:draw()
 	self.vao:DrawArrays(GL.TRIANGLE_STRIP)
 end
 function UIBar:updatePosition()
-	self:computeAbsoluteRect()
 	--Progress bar region clip positions. Floor and ceil to round to nearest pixel to prevent fractional pixel artifacts
-	local left = convertToClipSpace(floor(self.absLeft), nil)
-	local right = convertToClipSpace(ceil(self.absRight), nil)
-	local top = convertToClipSpace(nil, ceil(self.absTop))
-	local bottom = convertToClipSpace(nil, floor(self.absBottom))
+	local left = convertToClipSpace(floor(self.left), nil)
+	local right = convertToClipSpace(ceil(self.right), nil)
+	local top = convertToClipSpace(nil, ceil(self.top))
+	local bottom = convertToClipSpace(nil, floor(self.bottom))
 	--Triangle strip vertices with uv
 	local vertices = {
 		left, top, 0, 1,
@@ -1501,7 +1484,16 @@ end
 
 -- A class for basic UI text
 local UITextElement = {
-	mt = {}
+	mt = {},
+	TextAlignment = {
+		LEFT = 1,
+		CENTER = 2,
+		RIGHT = 3,
+	},
+	VerticalAlignment = {
+		BASELINE = 1,
+		CENTER = 2,
+	}
 }
 setmetatable(UITextElement, UIElement.mt)
 UITextElement.mt.__index = UITextElement
@@ -1511,10 +1503,27 @@ function UITextElement.new(args)
 	end
 	
 	args.fontSize = args.fontSize or fontSizes.default
+	args.bold = args.bold or false
 	args.color = args.color or fontColors.white
 	args.onColor = args.onColor or args.color
 	args.offColor = args.offColor or fontColors.fadedGray
-	args.fontFlags = args.fontFlags or "v"
+	args.textAlignment = args.textAlignment or UITextElement.TextAlignment.LEFT
+	args.verticalAlignment = args.verticalAlignment or UITextElement.VerticalAlignment.BASELINE
+	args.outline = args.outline or false
+	args.fontFlags = ""
+	if args.textAlignment == UITextElement.TextAlignment.RIGHT then
+		args.fontFlags = args.fontFlags .. "r"
+	elseif args.textAlignment == UITextElement.TextAlignment.CENTER then
+		args.fontFlags = args.fontFlags .. "c"
+	end
+	if args.verticalAlignment == UITextElement.VerticalAlignment.CENTER then
+		args.fontFlags = args.fontFlags .. "v"
+	else
+		args.fontFlags = args.fontFlags .. "x"
+	end
+	if args.outline then
+		args.fontFlags = args.fontFlags .. "o"
+	end
 	
 	if not getmetatable(args) then
 		setmetatable(args, UITextElement.mt)
@@ -1522,17 +1531,41 @@ function UITextElement.new(args)
 	args = UIElement.new(args)
 	return args
 end
+function UITextElement:updatePosition()
+	if self.textAlignment == UITextElement.TextAlignment.RIGHT then
+		self.x = self.right
+	elseif self.textAlignment == UITextElement.TextAlignment.CENTER then
+		self.x = self.left + self.width/2
+	else
+		self.x = self.left
+	end
+	if self.verticalAlignment == UITextElement.VerticalAlignment.CENTER then
+		self.y = self.bottom + self.height/2
+	else
+		self.y = self.bottom
+	end
+	self:updateData()
+	self.positionInvalid = false
+end
 function UITextElement:updateData()
+	--Get font in here because it is deleted whenever the view resizes
+	local font = self.bold and exo2SemiBoldFont or exo2Font
 	gl.DeleteList(self.displayList)
 	self.displayList = gl.CreateList(function ()
-		exo2Font:SetTextColor(self.color)
-		exo2Font:Print(self.text, self.absLeft, self.absBottom + self.absHeight / 2, self.fontSize * uiBoxPosition.scale, self.fontFlags)
+		font:SetTextColor(self.color)
+		font:Print(self.text, self.x, self.y, self.fontSize, self.fontFlags)
 	end)
 	self.dataInvalid = false
 end
 function UITextElement:setText(text)
 	if text ~= self.text then
 		self.text = text
+		self:invalidateData()
+	end
+end
+function UITextElement:setFontSize(size)
+	if size ~= self.fontSize then
+		self.fontSize = size
 		self:invalidateData()
 	end
 end
@@ -1559,6 +1592,7 @@ function UITextTimer.new(args)
 	
 	args.text = args.text or "--:--"
 	args.fontSize = args.fontSize or fontSizes.timers
+	args.verticalAlignment = args.verticalAlignment or UITextElement.VerticalAlignment.CENTER
 	args.currentTimeSecs = ceil(args.totalTimeSecs)
 	
 	if not getmetatable(args) then
@@ -1867,8 +1901,16 @@ function widget:Initialize()
 					latestReceivedFrames[playerId] = -framesPerUpdate-- first update will put it at zero
 				end
 				
-				teamAddInfoNameTexts[teamId] = UITextElement.new({text = getTeamName(teamId), color = {teamRed, teamGreen, teamBlue, 1}, offColor = fontColors.lessFadedGray, fontFlags = "vo", fontSize = fontSizes.addInfoTeamNames, parent = addInfoBoxElement})
-				teamAddInfoNameTexts[teamId]:setColorOnOff(false)
+				teamNameAddInfoTexts[teamId] = UITextElement.new({
+					text = getTeamName(teamId),
+					color = {teamRed, teamGreen, teamBlue, 1},
+					offColor = fontColors.lessFadedGray,
+					outline = true,
+					fontSize = fontSizes.addInfoTeamNames,
+					bold = true,
+					parent = addInfoBoxElement
+				})
+				teamNameAddInfoTexts[teamId]:setColorOnOff(false)
 			end
 			
 			numTeams = numTeams + numTeamsOnAllyTeam
@@ -1912,10 +1954,42 @@ function widget:Initialize()
 	}
 	
 	modOptionValueAddInfoTexts = {
-		UITextElement.new({text = hillBuildRuleAddInfoValues[hillBuildRule].text, color = hillBuildRuleAddInfoValues[hillBuildRule].color, fontFlags = "vro", fontSize = fontSizes.addInfoModOptionValues, parent = addInfoBoxElement}),
-		UITextElement.new({text = booleanAddInfoValues[kingKeepsHill].text, color = booleanAddInfoValues[kingKeepsHill].color, fontFlags = "vro", fontSize = fontSizes.addInfoModOptionValues, parent = addInfoBoxElement}),
-		UITextElement.new({text = booleanAddInfoValues[explodeHillUnits].text, color = booleanAddInfoValues[explodeHillUnits].color, fontFlags = "vro", fontSize = fontSizes.addInfoModOptionValues, parent = addInfoBoxElement}),
-		UITextElement.new({text = booleanAddInfoValues[noDamageInBoxes].text, color = booleanAddInfoValues[noDamageInBoxes].color, fontFlags = "vro", fontSize = fontSizes.addInfoModOptionValues, parent = addInfoBoxElement})
+		UITextElement.new({
+			text = hillBuildRuleAddInfoValues[hillBuildRule].text,
+			color = hillBuildRuleAddInfoValues[hillBuildRule].color,
+			textAlignment = UITextElement.TextAlignment.RIGHT,
+			outline = true,
+			fontSize = fontSizes.addInfoModOptionValues,
+			bold = true,
+			parent = addInfoBoxElement
+		}),
+		UITextElement.new({
+			text = booleanAddInfoValues[kingKeepsHill].text,
+			color = booleanAddInfoValues[kingKeepsHill].color,
+			textAlignment = UITextElement.TextAlignment.RIGHT,
+			outline = true,
+			fontSize = fontSizes.addInfoModOptionValues,
+			bold = true,
+			parent = addInfoBoxElement
+		}),
+		UITextElement.new({
+			text = booleanAddInfoValues[explodeHillUnits].text,
+			color = booleanAddInfoValues[explodeHillUnits].color,
+			textAlignment = UITextElement.TextAlignment.RIGHT,
+			outline = true,
+			fontSize = fontSizes.addInfoModOptionValues,
+			bold = true,
+			parent = addInfoBoxElement
+		}),
+		UITextElement.new({
+			text = booleanAddInfoValues[noDamageInBoxes].text,
+			color = booleanAddInfoValues[noDamageInBoxes].color,
+			textAlignment = UITextElement.TextAlignment.RIGHT,
+			outline = true,
+			fontSize = fontSizes.addInfoModOptionValues,
+			bold = true,
+			parent = addInfoBoxElement
+		})
 	}
 	
 	-- fill in extra space in uniform arrays
@@ -1955,7 +2029,7 @@ function widget:Initialize()
 	activePlayers:add(myPlayerId)--TODO consider moving to dry function
 	local newActivePlayerCount = allyTeamActivePlayerCount[myAllyTeam] + 1
 	allyTeamActivePlayerCount[myAllyTeam] = newActivePlayerCount
-	teamAddInfoNameTexts[myTeam]:setColorOnOff(true)
+	teamNameAddInfoTexts[myTeam]:setColorOnOff(true)
 	
 	VersionInitUIPacket.new():send()
 	
@@ -1972,10 +2046,12 @@ local function getBelowBoxPosition()
 	for _, widgetName in ipairs(belowWidgetsInOrder) do
 		local widgetWG = WG[widgetName]
 		if widgetWG then
-			if widgetWG.GetPosition then
-				local widgetPos = widgetWG.GetPosition()
-				if widgetPos then
-					return widgetPos
+			if not widgetWG.isActive or widgetWG.isActive() then
+				if widgetWG.GetPosition then
+					local widgetPos = widgetWG.GetPosition()
+					if widgetPos then
+						return widgetPos
+					end
 				end
 			end
 		end
@@ -2003,8 +2079,15 @@ local function updateUIBoxPosition()
 								(2 * scaledBoxVerticalPadding) - scaledBarVerticalSpacing +
 								scaledCaptureBarTopMargin + scaledCaptureBarHeight
 	
-	local scaledAddInfoTeamTextHeight = ceil(addInfoVerticalSpacing.teamTextHeight * scale)
-	local scaledAddInfoModOptionTextHeight = ceil(addInfoVerticalSpacing.modOptionTextHeight * scale)
+	local teamNameFont = teamNameAddInfoTexts[1].bold and exo2SemiBoldFont or exo2Font
+	local modOptionNameFont = modOptionNameAddInfoTexts[1].bold and exo2SemiBoldFont or exo2Font
+	local modOptionValueFont = modOptionValueAddInfoTexts[1].bold and exo2SemiBoldFont or exo2Font
+	
+	local scaledAddInfoTeamTextHeight = ceil(teamNameFont:GetTextHeight("A") * fontSizes.addInfoTeamNames * scale)
+	local scaledAddInfoModOptionTextHeight = ceil(max(
+		modOptionNameFont:GetTextHeight("A") * fontSizes.addInfoModOptionNames * scale,
+		modOptionValueFont:GetTextHeight("A") * fontSizes.addInfoModOptionValues * scale
+	))
 	local scaledAddInfoTeamVerticalSpacing = ceil(addInfoVerticalSpacing.teamMargin * scale)
 	local scaledAddInfoModOptionVerticalSpacing = ceil(addInfoVerticalSpacing.modOptionMargin * scale)
 	local scaledAddInfoAllyTeamVerticalSpacing = ceil(addInfoVerticalSpacing.allyTeamMargin * scale)
@@ -2035,87 +2118,84 @@ local function updateUIBoxPosition()
 		scale = scale
 	}
 	
+	local absUIBoxHorizontalPadding = uiBoxHorizontalPadding * uiBoxPosition.width
+	local absProgressBarWidth = progressBarWidth * uiBoxPosition.width
+	local absTimerLeftMargin = timerLeftMargin * uiBoxPosition.width
+	
 	uiBoxElement:setPos(uiBoxPosition)
 	addInfoBoxElement:setPos(addInfoBoxPosition)
 	
-	local relativeBarHeight = scaledBarHeight / uiBoxPosition.height
-	local relativeBarVerticalSpacing = scaledBarVerticalSpacing / uiBoxPosition.height
-	local relativeBoxVerticalPadding = scaledBoxVerticalPadding / uiBoxPosition.height
-	
-	local relativeAddInfoVerticalPadding = scaledBoxVerticalPadding / addInfoBoxPosition.height
-	local relativeAddInfoTeamTextHeight = scaledAddInfoTeamTextHeight / addInfoBoxPosition.height
-	local relativeAddInfoModOptionTextHeight = scaledAddInfoModOptionTextHeight / addInfoBoxPosition.height
-	local relativeAddInfoTeamVerticalSpacing = scaledAddInfoTeamVerticalSpacing / addInfoBoxPosition.height
-	local relativeAddInfoModOptionVerticalSpacing = scaledAddInfoModOptionVerticalSpacing / addInfoBoxPosition.height
-	local relativeAddInfoAllyTeamVerticalSpacing = scaledAddInfoAllyTeamVerticalSpacing / addInfoBoxPosition.height
-	local relativeAddInfoSectionVerticalSpacing = scaledAddInfoSectionVerticalSpacing / addInfoBoxPosition.height
-	
-	local barTopRelCoord = 1 - relativeBoxVerticalPadding
+	local barTopCoord = uiBoxPosition.top - scaledBoxVerticalPadding
 	for _, allyTeamId in ipairs(allyTeams) do
-		local uiBarRelPos = {
-			top = barTopRelCoord,
-			bottom = barTopRelCoord - relativeBarHeight,
-			left = uiBoxHorizontalPadding,
-			right = uiBoxHorizontalPadding + progressBarWidth
+		local uiBarPos = {
+			top = barTopCoord,
+			bottom = barTopCoord - scaledBarHeight,
+			left = uiBoxPosition.left + absUIBoxHorizontalPadding,
+			right = uiBoxPosition.left + absUIBoxHorizontalPadding + absProgressBarWidth
 		}
-		allyTeamProgressBars[allyTeamId]:setPos(uiBarRelPos)
-		allyTeamProgressTimers[allyTeamId]:setPos({
-			top = uiBarRelPos.top,
-			bottom = uiBarRelPos.bottom,
-			left = uiBoxHorizontalPadding + progressBarWidth + timerLeftMargin,
-			right = 1 - uiBoxHorizontalPadding
+		allyTeamProgressBars[allyTeamId]:setPos(uiBarPos)
+		local progressTimer = allyTeamProgressTimers[allyTeamId]
+		progressTimer:setPos({
+			top = uiBarPos.top,
+			bottom = uiBarPos.bottom,
+			left = uiBoxPosition.left + absUIBoxHorizontalPadding + absProgressBarWidth + absTimerLeftMargin,
+			right = uiBoxPosition.right - absUIBoxHorizontalPadding
 		})
-		barTopRelCoord = barTopRelCoord - relativeBarHeight - relativeBarVerticalSpacing
+		progressTimer:setFontSize(fontSizes.timers * scale)
+		barTopCoord = barTopCoord - scaledBarHeight - scaledBarVerticalSpacing
 	end
 	
-	local captureBarRelativeHeight = scaledCaptureBarHeight / uiBoxPosition.height
-	local captureBarRelativeTopMargin = scaledCaptureBarTopMargin / uiBoxPosition.height
-	local captureBarRelPos = {
-		top = barTopRelCoord + relativeBarVerticalSpacing - captureBarRelativeTopMargin,
-		bottom = relativeBoxVerticalPadding,
-		left = uiBoxHorizontalPadding,
-		right = uiBoxHorizontalPadding + progressBarWidth
+	local captureBarPos = {
+		top = barTopCoord + scaledBarVerticalSpacing - scaledCaptureBarTopMargin,
+		bottom = uiBoxPosition.bottom + scaledBoxVerticalPadding,
+		left = uiBoxPosition.left + absUIBoxHorizontalPadding,
+		right = uiBoxPosition.left + absUIBoxHorizontalPadding + absProgressBarWidth
 	}
-	captureProgressBar:setPos(captureBarRelPos)
+	captureProgressBar:setPos(captureBarPos)
 	captureProgressTimer:setPos({
-		top = captureBarRelPos.top,
-		bottom = captureBarRelPos.bottom,
-		left = uiBoxHorizontalPadding + progressBarWidth + timerLeftMargin,
-		right = 1 - uiBoxHorizontalPadding
+		top = captureBarPos.top,
+		bottom = captureBarPos.bottom,
+		left = uiBoxPosition.left + absUIBoxHorizontalPadding + absProgressBarWidth + absTimerLeftMargin,
+		right = uiBoxPosition.right - absUIBoxHorizontalPadding
 	})
+	captureProgressTimer:setFontSize(fontSizes.timers * scale)
 	
-	local textTopRelCoord = 1 - relativeAddInfoVerticalPadding
+	local textTopCoord = addInfoBoxPosition.top - scaledBoxVerticalPadding
 	for _, allyTeamId in ipairs(allyTeams) do
 		local allyTeamTeams = allyTeamToTeams:get(allyTeamId)
 		for teamId in allyTeamTeams:iter() do
-			teamAddInfoNameTexts[teamId]:setPos({
-				top = textTopRelCoord,
-				bottom = textTopRelCoord - relativeAddInfoTeamTextHeight,
-				left = uiBoxHorizontalPadding,
-				right = 1 - uiBoxHorizontalPadding
+			local teamNameText = teamNameAddInfoTexts[teamId]
+			teamNameText:setPos({
+				top = textTopCoord,
+				bottom = textTopCoord - scaledAddInfoTeamTextHeight,
+				left = addInfoBoxPosition.left + absUIBoxHorizontalPadding,
+				right = addInfoBoxPosition.right - absUIBoxHorizontalPadding
 			})
-			textTopRelCoord = textTopRelCoord - relativeAddInfoTeamTextHeight - relativeAddInfoTeamVerticalSpacing
+			teamNameText:setFontSize(fontSizes.addInfoTeamNames * scale)
+			textTopCoord = textTopCoord - scaledAddInfoTeamTextHeight - scaledAddInfoTeamVerticalSpacing
 		end
-		textTopRelCoord = textTopRelCoord + relativeAddInfoTeamVerticalSpacing - relativeAddInfoAllyTeamVerticalSpacing
+		textTopCoord = textTopCoord + scaledAddInfoTeamVerticalSpacing - scaledAddInfoAllyTeamVerticalSpacing
 	end
 	
-	textTopRelCoord = textTopRelCoord + relativeAddInfoAllyTeamVerticalSpacing - relativeAddInfoSectionVerticalSpacing
+	textTopCoord = textTopCoord + scaledAddInfoAllyTeamVerticalSpacing - scaledAddInfoSectionVerticalSpacing
 	for i = 1, #modOptionNameAddInfoTexts do
-		local nameTextElement = modOptionNameAddInfoTexts[i]
-		local valueTextElement = modOptionValueAddInfoTexts[i]
-		nameTextElement:setPos({
-			top = textTopRelCoord,
-			bottom = textTopRelCoord - relativeAddInfoModOptionTextHeight,
-			left = uiBoxHorizontalPadding,
-			right = 0.5
+		local nameText = modOptionNameAddInfoTexts[i]
+		local valueText = modOptionValueAddInfoTexts[i]
+		nameText:setPos({
+			top = textTopCoord,
+			bottom = textTopCoord - scaledAddInfoModOptionTextHeight,
+			left = addInfoBoxPosition.left + absUIBoxHorizontalPadding,
+			right = addInfoBoxPosition.left + addInfoBoxPosition.width/2
 		})
-		valueTextElement:setPos({
-			top = textTopRelCoord,
-			bottom = textTopRelCoord - relativeAddInfoModOptionTextHeight,
-			left = 1 - uiBoxHorizontalPadding,-- right justified font draws from the left side of the box
-			right = 1 - uiBoxHorizontalPadding
+		valueText:setPos({
+			top = textTopCoord,
+			bottom = textTopCoord - scaledAddInfoModOptionTextHeight,
+			left = addInfoBoxPosition.left + addInfoBoxPosition.width/2,
+			right = addInfoBoxPosition.right - absUIBoxHorizontalPadding
 		})
-		textTopRelCoord = textTopRelCoord - relativeAddInfoModOptionTextHeight - relativeAddInfoModOptionVerticalSpacing
+		nameText:setFontSize(fontSizes.addInfoModOptionNames * scale)
+		valueText:setFontSize(fontSizes.addInfoModOptionValues * scale)
+		textTopCoord = textTopCoord - scaledAddInfoModOptionTextHeight - scaledAddInfoModOptionVerticalSpacing
 	end
 	
 end
@@ -2134,6 +2214,7 @@ function widget:ViewResize(vs_x, vs_y)
 	vsy = vs_y
 	flowUIDrawElement = WG.FlowUI.Draw.Element
 	exo2Font = WG.fonts.getFont(exo2FontPath)
+	exo2SemiBoldFont = WG.fonts.getFont(exo2SemiBoldFontPath)
 	-- Call here as well as in widget:DrawScreen because I have no idea the order
 	-- of other widgets resizing so we want the best chance of getting it right
 	triggerUIBoxResize()
@@ -2276,7 +2357,7 @@ local function deactivatePlayer(playerId, updateFrame)
 		numReceivedPlayers[f] = numReceivedPlayers[f] - 1
 	end
 	
-	teamAddInfoNameTexts[playerToTeam[playerId]]:setColorOnOff(false)
+	teamNameAddInfoTexts[playerToTeam[playerId]]:setColorOnOff(false)
 	
 	local allyTeam = playerToAllyTeam[playerId]
 	local newAllyTeamActiveCount = allyTeamActivePlayerCount[allyTeam] - 1
@@ -2345,7 +2426,7 @@ function widget:RecvLuaMsg(msg, playerId)
 				local allyTeam = playerToAllyTeam[playerId]
 				local newActivePlayerCount = allyTeamActivePlayerCount[allyTeam] + 1
 				allyTeamActivePlayerCount[allyTeam] = newActivePlayerCount
-				teamAddInfoNameTexts[playerToTeam[playerId]]:setColorOnOff(true)
+				teamNameAddInfoTexts[playerToTeam[playerId]]:setColorOnOff(true)
 				addChatLine(getGameFrame(), getPlayerName(playerId) .. " has been added to the KOTH session.")
 			end
 		else
@@ -2557,7 +2638,7 @@ function widget:DrawScreen()
 		
 		addInfoBoxElement:drawFrame()
 		
-		for _, nameText in pairs(teamAddInfoNameTexts) do
+		for _, nameText in pairs(teamNameAddInfoTexts) do
 			nameText:drawFrame()
 		end
 		
