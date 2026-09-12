@@ -994,9 +994,9 @@ local modOptionNameAddInfoTexts = {}
 local modOptionValueAddInfoTexts = {}
 
 -- The regular font
-local exo2Font = WG.fonts.getFont(exo2FontPath)
+local exo2Font
 -- The semi-bold font
-local exo2SemiBoldFont = WG.fonts.getFont(exo2SemiBoldFontPath)
+local exo2SemiBoldFont
 
 -- Used to update the position of the UI box multiple times after the screen is resized
 -- since the ordering of the size updates from the lower widgets is unknown to me
@@ -1261,7 +1261,7 @@ function UIBar:updateData()
 end
 function UIBar:setProgress(progress)
 	progress = max(min(progress, 1), 0)
-	if abs(progress - self.progress.lastValue) * self.absWidth >= 1 then
+	if abs(progress - self.progress.lastValue) * self.width >= 1 then
 		self.progress:set(progress)
 		self:invalidateData()
 	end
@@ -2213,6 +2213,8 @@ function widget:GameStart()
 			allyTeamProgressTimers[allyTeamId]:setDisqualified(true)
 		end
 	end
+	--player list changes size
+	triggerUIBoxResize()
 end
 
 -- Called whenever a player's status changes e.g. becoming a spectator. Also called when changing teams.
@@ -2235,6 +2237,7 @@ end
 -- Also resizes the UI box because the player list box below changes size and
 -- adds the player to playerToAllyTeam and playerToTeam
 function widget:PlayerAdded(playerID)
+	Spring.Echo("GameStarted: " .. tostring(gameStarted) .. " PlayerAdded: " .. tostring(playerID))
 	if not gameStarted then
 		VersionInitUIPacket.new():send()
 	end
@@ -2396,6 +2399,7 @@ function widget:RecvLuaMsg(msg, playerId)
 		elseif packet.typeId == SelfDeactivationUIPacket.typeId then
 			playerDeactivationUpdates:put(packet.frame, playerId)
 		elseif packet.typeId == VersionInitUIPacket.typeId then
+			Spring.Echo("Received Init Packet from: " .. tostring(playerId))
 			if gameStarted then
 				addChatLine(getGameFrame(), getPlayerName(playerId) .. " tried to join the KOTH session after it started.")
 				return
