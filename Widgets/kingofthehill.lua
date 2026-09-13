@@ -596,6 +596,20 @@ local function log(level, msg)
 	Spring.Log(logWidgetName, level, msg)
 end
 
+--TODO remove
+function dump(o)
+   if type(o) == 'table' then
+      local s = '{ '
+      for k,v in pairs(o) do
+         if type(k) ~= 'number' then k = '"'..k..'"' end
+         s = s .. '['..k..'] = ' .. dump(v) .. ','
+      end
+      return s .. '} '
+   else
+      return tostring(o)
+   end
+end
+
 -- /////////////////////////////
 -- #endregion
 -- /////////////////////////////
@@ -2245,6 +2259,10 @@ function widget:PlayerAdded(playerID)
 	local _, _, _, teamId, allyTeamId = Spring.GetPlayerInfo(playerID)
 	playerToAllyTeam[playerID] = allyTeamId
 	triggerUIBoxResize()
+end
+
+function widget:GameSetup(readyMsg, ready, readyStates)
+	Spring.Echo("GameSetup: " .. dump(readyMsg) .. ", " .. dump(ready) .. ", " .. dump(readyStates))
 end
 
 -- Called whenever a player is removed from the game.
