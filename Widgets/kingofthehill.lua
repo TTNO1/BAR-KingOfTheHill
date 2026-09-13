@@ -271,7 +271,7 @@ local maximumWaitFramesAfterDisconnect = fps * 20
 local maxScreenResizeCountdown = fps*2
 
 -- Before the game has started, a VersionInitUIPacket will be sent on this interval in seconds
-local sendInitPacketIntervalSecs = 1
+local sendInitPacketIntervalSecs = 1.5
 
 --The character that is sent to and received from other players to indicate that the sending
 --player has a capture qualified unit in the hill
@@ -2243,6 +2243,7 @@ function widget:Update(dt)
 		return
 	end
 	VersionInitUIPacket.new():send()
+	timeSinceLastSend = 0
 end
 
 -- Called whenever a player's status changes e.g. becoming a spectator. Also called when changing teams.
@@ -2269,10 +2270,6 @@ function widget:PlayerAdded(playerID)
 	playerToAllyTeam[playerID] = allyTeamId
 	playerToTeam[playerID] = teamId
 	triggerUIBoxResize()
-end
-
-function widget:GameSetup(readyMsg, ready, readyStates)
-	Spring.Echo("GameSetup: " .. dump(readyMsg) .. ", " .. dump(ready) .. ", " .. dump(readyStates))
 end
 
 -- Called whenever a player is removed from the game.
@@ -2394,7 +2391,7 @@ end
 -- Receives messages from unsynced sent via Spring.SendLuaUIMsg
 function widget:RecvLuaMsg(msg, playerId)
 	
-	if playerId == myPlayerId or not activePlayers:contains(playerId) then
+	if playerId == myPlayerId or (gameStarted and not activePlayers:contains(playerId)) then
 		return
 	end
 	
