@@ -268,7 +268,10 @@ local maximumWaitFramesAfterDisconnect = fps * 20
 -- since the ordering of the size updates from the lower widgets is unknown to me.
 -- This represents the number of frames after the screen is resized for which we will
 -- update the widget box size to match those below it
-local maxScreenResizeCountdown = 10
+local maxScreenResizeCountdown = fps*2
+
+-- Before the game has started, a VersionInitUIPacket will be sent on this interval in seconds
+local sendInitPacketIntervalSecs = 1
 
 --The character that is sent to and received from other players to indicate that the sending
 --player has a capture qualified unit in the hill
@@ -2028,8 +2031,6 @@ function widget:Initialize()
 	allyTeamActivePlayerCount[myAllyTeam] = newActivePlayerCount
 	teamNameAddInfoTexts[myTeam]:setColorOnOff(true)
 	
-	VersionInitUIPacket.new():send()
-	
 end
 
 -- Gets the position on the screen of the ui box of the widget below our box
@@ -2231,6 +2232,19 @@ function widget:GameStart()
 	triggerUIBoxResize()
 end
 
+local timeSinceLastSend = 0
+function widget:Update(dt)
+	if gameStarted then
+		widgetHandler.RemoveCallIn(nil, "Update")
+		return
+	end
+	if timeSinceLastSend < sendInitPacketIntervalSecs then
+		timeSinceLastSend = timeSinceLastSend + dt
+		return
+	end
+	VersionInitUIPacket.new():send()
+end
+
 -- Called whenever a player's status changes e.g. becoming a spectator. Also called when changing teams.
 -- Used to queue the player for deactivation, resize the ui box because the player list box below changes
 -- size, and update myAllyTeam and myStartBox
@@ -2251,13 +2265,9 @@ end
 -- Also resizes the UI box because the player list box below changes size and
 -- adds the player to playerToAllyTeam and playerToTeam
 function widget:PlayerAdded(playerID)
-	Spring.Echo("GameStarted: " .. tostring(gameStarted) .. " PlayerAdded: " .. tostring(playerID))
-	if not gameStarted then
-		VersionInitUIPacket.new():send()
-	end
-	
 	local _, _, _, teamId, allyTeamId = Spring.GetPlayerInfo(playerID)
 	playerToAllyTeam[playerID] = allyTeamId
+	playerToTeam[playerID] = teamId
 	triggerUIBoxResize()
 end
 
@@ -2427,12 +2437,13 @@ function widget:RecvLuaMsg(msg, playerId)
 			elseif packet.version < kothWidgetVersion then
 				addChatLine(getGameFrame(), getPlayerName(playerId) .. "'s KOTH widget version (" .. packet.version .. ") is not compatible with yours (" .. kothWidgetVersion .. "). Please ask them to update their widget and try again.")
 			else
-				activePlayers:add(playerId)
-				local allyTeam = playerToAllyTeam[playerId]
-				local newActivePlayerCount = allyTeamActivePlayerCount[allyTeam] + 1
-				allyTeamActivePlayerCount[allyTeam] = newActivePlayerCount
-				teamNameAddInfoTexts[playerToTeam[playerId]]:setColorOnOff(true)
-				addChatLine(getGameFrame(), getPlayerName(playerId) .. " has been added to the KOTH session.")
+				if activePlayers:add(playerId) then
+					local allyTeam = playerToAllyTeam[playerId]
+					local newActivePlayerCount = allyTeamActivePlayerCount[allyTeam] + 1
+					allyTeamActivePlayerCount[allyTeam] = newActivePlayerCount
+					teamNameAddInfoTexts[playerToTeam[playerId]]:setColorOnOff(true)
+					addChatLine(getGameFrame(), getPlayerName(playerId) .. " has been added to the KOTH session.")
+				end
 			end
 		else
 			log("error", "Unrecognized packet: " .. msg)
