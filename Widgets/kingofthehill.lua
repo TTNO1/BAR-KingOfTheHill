@@ -252,6 +252,12 @@ local mapAreaFragmentShaderPath = "LuaUI/Shaders/kingofthehillmaparea.frag.glsl"
 --The size of the arrays in the fragment shaders
 local fragmentShaderMaxTeams = 32
 
+-- The thickness of the progress bar outlines in pixels
+local progressBarBorderThickness = 1
+
+-- The border radius of the progress bar outlines in pixels
+local progressBarBorderRadius = 3
+
 --Specifies the interval at which the game state and UI are updated (i.e. updated every x frames)
 local framesPerUpdate = 5
 
@@ -975,12 +981,18 @@ local playerListPosition
 --The shaders for the progress bars
 local progressBarShader = gl.CreateShader({vertex = VFS.LoadFile(progressBarVertexShaderPath),
 												fragment = VFS.LoadFile(progressBarFragmentShaderPath)})
---Spring.Log("KingOfTheHill", "error", "Shader Log: \n" .. gl.GetShaderLog())
+if not progressBarShader then
+	log("error", "Failed to load progress bar shader")
+	log("error", "Shader Log: \n" .. gl.GetShaderLog())
+end
 
 --The shaders for the area outlines
 local mapAreaShader = gl.CreateShader({vertex = VFS.LoadFile(mapAreaVertexShaderPath):gsub("//##UBO##", gl.GetEngineUniformBufferDef(0)),
 											fragment = VFS.LoadFile(mapAreaFragmentShaderPath)})
---Spring.Log("KingOfTheHill", "error", "Shader Log: \n" .. gl.GetShaderLog())
+if not mapAreaShader then
+	log("error", "Failed to load map area shader")
+	log("error", "Shader Log: \n" .. gl.GetShaderLog())
+end
 
 --A UBO containing an array of ally team colors
 local allyTeamColorsUBO
@@ -1224,23 +1236,37 @@ end
 -- A class for each UI progress bar
 local UIBar = {
 	mt = {},
-	ProgressBarData = UniformValue.new({name = "progressBarData", shader = progressBarShader, value = 0, type = UniformValue.Type.INT}),
-	Flags = {CAPTURE_BAR = 0x00800000, DISQUALIFIED = 0x00400000}
+	Flags = {CAPTURE_BAR = 0x00800000, DISQUALIFIED = 0x00400000},
+	borderThickness = UniformValue.new({name = "borderThickness", shader = progressBarShader, value = 0, type = UniformValue.Type.INT}),
+	borderRadius = UniformValue.new({name = "borderRadius", shader = progressBarShader, value = 0, type = UniformValue.Type.INT}),
+	progressBarHalfWidth = UniformValue.new({name = "progressBarHalfWidth", shader = progressBarShader, value = 0, type = UniformValue.Type.FLOAT}),
+	allyTeamBarHalfHeight = UniformValue.new({name = "allyTeamBarHalfHeight", shader = progressBarShader, value = 0, type = UniformValue.Type.FLOAT}),
+	captureBarHalfHeight = UniformValue.new({name = "captureBarHalfHeight", shader = progressBarShader, value = 0, type = UniformValue.Type.FLOAT}),
+	progressBarData = UniformValue.new({name = "progressBarData", shader = progressBarShader, value = 0, type = UniformValue.Type.INT}),
 }
 setmetatable(UIBar, UIElement.mt)
 UIBar.mt.__index = UIBar
 function UIBar.new(args)
-	args.flags = args.flags or 0
-	if not args.allyTeam and (not args.flags or math.bit_and(args.flags, UIBar.Flags.CAPTURE_BAR) == 0) then
+	if not args.allyTeam and not args.isCaptureBar then
 		error("Missing one or more arguments for new UIBar", 2)
 	end
 	
 	args.allyTeamIndex = (allyTeamIndices[args.allyTeam] or 1) - 1
+	args.isCaptureBar = args.isCaptureBar or false
+	args.disqualified = args.disqualified or false
+	args.flags = 0
+	if args.isCaptureBar then
+		args.flags = math.bit_or(args.flags, UIBar.Flags.CAPTURE_BAR)
+	end
+	if args.disqualified then
+		args.flags = math.bit_or(args.flags, UIBar.Flags.DISQUALIFIED)
+	end
 	args.shader = args.shader or progressBarShader
-	local progressIndex = math.bit_and(args.flags, UIBar.Flags.CAPTURE_BAR) ~= 0 and fragmentShaderMaxTeams or args.allyTeamIndex
-	args.progress = UniformValue.new({name = "progress[" .. progressIndex .. "]", shader = args.shader, value = args.progress or 0, type = UniformValue.Type.FLOAT})
+	local progressIndex = args.isCaptureBar and fragmentShaderMaxTeams or args.allyTeamIndex
+	args.progress = args.progress or 0
+	args.progressThreshold = UniformValue.new({name = "progressThresholds[" .. progressIndex .. "]", shader = args.shader, value = 0, type = UniformValue.Type.INT})
 	args.vbo = gl.GetVBO(GL.ARRAY_BUFFER, false)
-	args.vbo:Define(4, {{id = 0, name = "position", size = 2}, {id = 1, name = "uv", size = 2}})
+	args.vbo:Define(4, {{id = 0, name = "vertex_position", size = 2}, {id = 1, name = "pixel_coord", size = 2}})
 	args.vao = gl.GetVAO()
 	args.vao:AttachVertexBuffer(args.vbo)
 	
@@ -1253,7 +1279,7 @@ end
 function UIBar:draw()
 	useShader(self.shader)
 	bindAllyTeamColorsUBO()
-	UIBar.ProgressBarData:setAndUpdate(math.bit_or(self.allyTeamIndex, self.flags))
+	UIBar.progressBarData:setAndUpdate(self.data)
 	self.vao:DrawArrays(GL.TRIANGLE_STRIP)
 end
 function UIBar:updatePosition()
@@ -1262,44 +1288,61 @@ function UIBar:updatePosition()
 	local right = convertToClipSpace(ceil(self.right), nil)
 	local top = convertToClipSpace(nil, ceil(self.top))
 	local bottom = convertToClipSpace(nil, floor(self.bottom))
-	--Triangle strip vertices with uv
+	--Pixel half dimensions
+	local halfWidth = self.width/2
+	local halfHeight = self.height/2
+	--Triangle strip vertices
 	local vertices = {
-		left, top, 0, 1,
-		left, bottom, 0, 0,
-		right, top, 1, 1,
-		right, bottom, 1, 0
+		left, top, -halfWidth, halfHeight,
+		left, bottom, -halfWidth, -halfHeight,
+		right, top, halfWidth, halfHeight,
+		right, bottom, halfWidth, -halfHeight
 	}
 	self.vbo:Upload(vertices)
+	--recalculate progressThreshold
+	self:setProgress(self.progress)
 	self.positionInvalid = false
 end
 function UIBar:updateData()
-	self.progress:update()
+	self.data = math.bit_or(self.allyTeamIndex, self.flags)
+	self.progressThreshold:update()
 	self.dataInvalid = false
 end
 function UIBar:setProgress(progress)
 	progress = max(min(progress, 1), 0)
-	if abs(progress - self.progress.lastValue) * self.width >= 1 then
-		self.progress:set(progress)
+	self.progress = progress
+	local newProgressThreshold = floor((progress - 0.5) * self.width + 0.5)
+	if newProgressThreshold ~= self.progressThreshold.lastValue then
+		self.progressThreshold:set(newProgressThreshold)
 		self:invalidateData()
 	end
 end
 function UIBar:setAllyTeam(allyTeamId)
+	if allyTeamId == self.allyTeam then
+		return
+	end
 	self.allyTeamIndex = (allyTeamIndices[allyTeamId] or 1) - 1
+	self:invalidateData()
 end
 function UIBar:setDisqualified(value)
+	if value == self.disqualified then
+		return
+	end
+	self.disqualified = value
 	local flag = UIBar.Flags.DISQUALIFIED
 	if value then
 		self.flags = math.bit_or(self.flags, flag)
 	else
 		self.flags = math.bit_and(self.flags, math.bit_inv(flag))
 	end
+	self:invalidateData()
 end
 
 -- A class for map area outlines rendered on the world
 local UIMapArea = {
 	mt = {},
-	MapAreaData = UniformValue.new({name = "mapAreaData", shader = mapAreaShader, value = 0, type = UniformValue.Type.INT}),
-	Flags = {HILL_AREA = 0x00800000}
+	Flags = {HILL_AREA = 0x00800000},
+	mapAreaData = UniformValue.new({name = "mapAreaData", shader = mapAreaShader, value = 0, type = UniformValue.Type.INT}),
 }
 setmetatable(UIMapArea, UIElement.mt)
 UIMapArea.mt.__index = UIMapArea
@@ -1327,7 +1370,7 @@ function UIMapArea:draw()
 	useShader(self.shader)
 	bindAllyTeamColorsUBO()
 	setLineWidth(self.lineWidth)
-	UIMapArea.MapAreaData:setAndUpdate(math.bit_or(self.allyTeamIndex, self.flags))
+	UIMapArea.mapAreaData:setAndUpdate(math.bit_or(self.allyTeamIndex, self.flags))
 	self.vao:DrawArrays(GL.LINE_LOOP)
 end
 function UIMapArea:updatePosition()
@@ -1932,7 +1975,7 @@ function widget:Initialize()
 	end
 	
 	-- color gets set when a team starts capturing
-	captureProgressBar = UIBar.new({flags = UIBar.Flags.CAPTURE_BAR, parent = uiBoxElement})
+	captureProgressBar = UIBar.new({isCaptureBar = true, parent = uiBoxElement})
 	captureProgressTimer = UITextTimer.new({totalTimeSecs = captureDelay/1000, parent = uiBoxElement})
 	
 	local hillBuildRuleAddInfoValues = {
@@ -2196,6 +2239,12 @@ local function updateUIBoxPosition()
 		textTopCoord = textTopCoord - scaledAddInfoModOptionTextHeight - scaledAddInfoModOptionVerticalSpacing
 	end
 	
+	UIBar.borderThickness:set(floor(progressBarBorderThickness * scale + 0.5))
+	UIBar.borderRadius:set(floor(progressBarBorderRadius * scale + 0.5))
+	UIBar.progressBarHalfWidth:set(absProgressBarWidth/2 - 0.5)--subtract 0.5 so that signed distance box aligns with pixels
+	UIBar.allyTeamBarHalfHeight:set(scaledBarHeight/2 - 0.5)
+	UIBar.captureBarHalfHeight:set(scaledCaptureBarHeight/2 - 0.5)
+	
 end
 
 -- Triggers the UI box position to be updated for the next couple frames.
@@ -2424,7 +2473,6 @@ function widget:RecvLuaMsg(msg, playerId)
 		elseif packet.typeId == SelfDeactivationUIPacket.typeId then
 			playerDeactivationUpdates:put(packet.frame, playerId)
 		elseif packet.typeId == VersionInitUIPacket.typeId then
-			Spring.Echo("Received Init Packet from: " .. tostring(playerId))
 			if gameStarted then
 				addChatLine(getGameFrame(), getPlayerName(playerId) .. " tried to join the KOTH session after it started.")
 				return
@@ -2637,6 +2685,13 @@ function widget:DrawScreen()
 	end
 	
 	captureProgressTimer:drawFrame()
+	
+	-- Update here so that we are not calling these updates for every bar
+	UIBar.borderThickness:update()
+	UIBar.borderRadius:update()
+	UIBar.progressBarHalfWidth:update()
+	UIBar.allyTeamBarHalfHeight:update()
+	UIBar.captureBarHalfHeight:update()
 	
 	for _, uiBar in pairs(allyTeamProgressBars) do
 		uiBar:drawFrame()

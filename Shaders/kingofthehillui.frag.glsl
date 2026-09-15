@@ -14,16 +14,27 @@ const vec4 CAPTURE_BAR_BORDER_COLOR = vec4(0.5, 0.5, 0.5, 1.0);// The color of t
 
 const float DISQUALIFIED_OPACITY = 0.4;// The opacity of a bar for a disqualified team
 
-const float BORDER_THICKNESS = 1;// Thickness of outline in pixels
-
-const float BORDER_RADIUS = 2;// The border radius of the progress bar in pixels
-
 layout (std140, binding = 6) uniform allyTeamColors
 {
 	vec4[MAX_TEAMS] colors;// Colors of each ally team
 };
 
-uniform float[MAX_TEAMS + 1] progress;// The progress level for each ally team and the capture bar
+// The thickness of the progress bar outlines in pixels
+uniform int borderThickness;
+
+// The border radius of the progress bars in pixels
+uniform int borderRadius; 
+
+// Half the width of every progress bar in pixels (assumed to all be the same)
+uniform float progressBarHalfWidth;
+
+// Half the height of every ally team progress bar in pixels (assumed to all be the same)
+uniform float allyTeamBarHalfHeight;
+
+// Half the height of the capture progress bar in pixels
+uniform float captureBarHalfHeight;
+
+uniform int[MAX_TEAMS + 1] progressThresholds;// The progress threshold in pixel coords with origin at center of bar
 
 uniform int progressBarData;// 16 least significant bits are the index of the color in the colors array above
 							//  8 most significant bits are always zero since lua uses floats
@@ -33,7 +44,8 @@ uniform int progressBarData;// 16 least significant bits are the index of the co
 							//    bit 22 = 1 for disqualified, 0 for not disqualified
 							//    LSb
 
-in vec2 uvCoord;
+// Pixel coordinates with origin at center of bar
+in vec2 pixelCoord;
 
 out vec4 fragColor;
 
@@ -45,40 +57,46 @@ float signedDistanceBox(vec2 point, vec2 box, float radius)
 
 void main()
 {
-	//get the 16 least significant bits as the color index
-	int colorIndex = progressBarData & COLOR_INDEX_MASK;
-	vec4 color = colors[colorIndex];
-	//most significant bit specifies if it is the capture bar
-	bool isCaptureBar = (progressBarData & CAPTURE_BAR_FLAG) != 0;
-	//if it is the capture bar, then our progress is at index MAX_TEAMS
-	int progressIndex = isCaptureBar ? MAX_TEAMS : colorIndex;
-	//second most significant bit specifies if the team is disqualified
-	bool isDisqualified = (progressBarData & DISQUALIFIED_FLAG) != 0;
-	if(isDisqualified) {
-		color.a = DISQUALIFIED_OPACITY;
+	
+	vec4 color;
+	int progressThreshold;
+	vec4 borderColor;
+	float halfHeight;
+	
+	//if it is the capture bar
+	if((progressBarData & CAPTURE_BAR_FLAG) != 0) {
+		color = colors[progressBarData & COLOR_INDEX_MASK];
+		progressThreshold = progressThresholds[MAX_TEAMS];
+		borderColor = CAPTURE_BAR_BORDER_COLOR;
+		halfHeight = captureBarHalfHeight;
+	} else {
+		//get the 16 bits of the color index
+		int colorIndex = progressBarData & COLOR_INDEX_MASK;
+		color = colors[colorIndex];
+		progressThreshold = progressThresholds[colorIndex];
+		//if it is disqualified
+		if((progressBarData & DISQUALIFIED_FLAG) != 0) {
+			color.a = DISQUALIFIED_OPACITY;
+		}
+		borderColor = color;
+		halfHeight = allyTeamBarHalfHeight;
 	}
-	//the color of the outline of the bar
-	vec4 borderColor = isCaptureBar ? CAPTURE_BAR_BORDER_COLOR : color;
 	
 	//used to change colors for filled portion and unfilled portion of bar
-	float fillFactor = max(min(((progress[progressIndex] * 1.01) - uvCoord.x) * 80, 1), 0);
-	//creates a vertical gradient along the bar
-	float verticalGradientFactor = 0.8 + uvCoord.y * uvCoord.y * 0.5;
+	float fillFactor = max(min((progressThreshold - pixelCoord.x), 1), 0);
 	
-	fragColor = (color * fillFactor * verticalGradientFactor) + ((1 - fillFactor) * BACKGROUND_COLOR);
+	float scaledYCoord = pixelCoord.y/halfHeight + 1;
+	//used to create a vertical gradient along the bar
+	float verticalGradientFactor = 0.8 + scaledYCoord * scaledYCoord * 0.125;
 	
-	//aspect ratio scaling to create circular corners
-	//assumes width >= height
-	//TODO consider replacing with uniform aspect ratio
-	float duvdyCoarse = dFdyCoarse(uvCoord.y);
-	float duvdxCoarse = dFdxCoarse(uvCoord.x);
-	vec2 scaledBox = vec2(0.5 / duvdxCoarse, 0.5 / duvdyCoarse);
-	vec2 scaledPos = vec2((uvCoord.x - 0.5) / duvdxCoarse, (uvCoord.y - 0.5) / duvdyCoarse);
+	fragColor = (color * verticalGradientFactor * fillFactor) + ((1 - fillFactor) * BACKGROUND_COLOR);
 	
-	float sd = signedDistanceBox(scaledPos, scaledBox, BORDER_RADIUS);
-	float borderFactor = min(max((sd + BORDER_THICKNESS) * 100, 0), 1);
-	float aplhaFactor = max(min(-sd * 10, 1), 0);
+	vec2 box = vec2(progressBarHalfWidth, halfHeight);
+	float sd = signedDistanceBox(pixelCoord, box, borderRadius);
+	
+	float borderFactor = min(max(sd + borderThickness, 0), 1);
+	float alphaFactor = max(min(-sd*0.65 + borderThickness, 1), 0);
 	
 	fragColor = ((1 - borderFactor) * fragColor) + (borderFactor * borderColor);
-	fragColor.w = fragColor.w * aplhaFactor;
+	fragColor.w = fragColor.w * alphaFactor;
 }

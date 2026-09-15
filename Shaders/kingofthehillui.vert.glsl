@@ -4,12 +4,12 @@
 
 layout (location = 0) in vec2 vertex_position;
 
-layout (location = 1) in vec2 uv_coord;
+layout (location = 1) in vec2 pixel_coord;
 
-out vec2 uvCoord;
+out vec2 pixelCoord;
 
 void main()
 {
 	gl_Position = vec4(vertex_position.xy, 0.0, 1.0);
-	uvCoord = uv_coord;
+	pixelCoord = pixel_coord;
 }
