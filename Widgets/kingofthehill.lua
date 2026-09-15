@@ -1283,11 +1283,11 @@ function UIBar:draw()
 	self.vao:DrawArrays(GL.TRIANGLE_STRIP)
 end
 function UIBar:updatePosition()
-	--Progress bar region clip positions. Floor and ceil to round to nearest pixel to prevent fractional pixel artifacts
-	local left = convertToClipSpace(floor(self.left), nil)
-	local right = convertToClipSpace(ceil(self.right), nil)
-	local top = convertToClipSpace(nil, ceil(self.top))
-	local bottom = convertToClipSpace(nil, floor(self.bottom))
+	--Progress bar region clip positions
+	local left = convertToClipSpace(self.left, nil)
+	local right = convertToClipSpace(self.right, nil)
+	local top = convertToClipSpace(nil, self.top)
+	local bottom = convertToClipSpace(nil, self.bottom)
 	--Pixel half dimensions
 	local halfWidth = self.width/2
 	local halfHeight = self.height/2
@@ -1850,7 +1850,7 @@ local function loadModOptions()
 	
 	explodeHillUnits = validateBoolean("explodeHillUnits")
 	
-	shouldDrawStartBoxes = (not noDamageInBoxes) and buildOutsideBoxes
+	shouldDrawStartBoxes = noDamageInBoxes or not buildOutsideBoxes
 	
 end
 
@@ -2886,7 +2886,7 @@ function widget:UnitDamaged(unitID, unitDefID, unitTeam, damage, paralyzer, weap
 	if lastGameFrame - lastCheckedFrame < minFramesBetweenDamageCheck then
 		return
 	end
-	if unitTeam == myTeam and teamToAllyTeam[attackerTeam] ~= myAllyTeam then
+	if unitTeam == myTeam and attackerTeam and attackerID and teamToAllyTeam[attackerTeam] ~= myAllyTeam then
 		lastCheckedFrame = lastGameFrame
 		local unitX, _, unitZ = Spring.GetUnitPosition(unitID)
 		if myStartBox:isPointInside(unitX, unitZ) then
