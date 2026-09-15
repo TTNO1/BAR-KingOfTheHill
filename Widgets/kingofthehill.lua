@@ -952,6 +952,9 @@ local latestReceivedFrames = {}
 -- Map of frame number to map of playerId to whether they are in the hill on the given frame
 local playerUpdates = NestedMap.new()
 
+-- Set of players that have already been rejected from joining the KOTH session. Used to prevent spamming chat messages
+local deniedInitPlayers = Set.new()
+
 -- #endregion
 
 --//////////////////////////
@@ -2473,23 +2476,30 @@ function widget:RecvLuaMsg(msg, playerId)
 		elseif packet.typeId == SelfDeactivationUIPacket.typeId then
 			playerDeactivationUpdates:put(packet.frame, playerId)
 		elseif packet.typeId == VersionInitUIPacket.typeId then
+			if activePlayers:contains(playerId) or deniedInitPlayers:contains(playerId) then
+				return
+			end
 			if gameStarted then
 				addChatLine(getGameFrame(), getPlayerName(playerId) .. " tried to join the KOTH session after it started.")
+				deniedInitPlayers:add(playerId)
 				return
 			end
 			if packet.version > kothWidgetVersion then
 				addChatLine(getGameFrame(), getPlayerName(playerId) .. "'s KOTH widget version (" .. packet.version .. ") is not compatible with yours (" .. kothWidgetVersion .. "). Please update your widget and try again.")
-			elseif packet.version < kothWidgetVersion then
-				addChatLine(getGameFrame(), getPlayerName(playerId) .. "'s KOTH widget version (" .. packet.version .. ") is not compatible with yours (" .. kothWidgetVersion .. "). Please ask them to update their widget and try again.")
-			else
-				if activePlayers:add(playerId) then
-					local allyTeam = playerToAllyTeam[playerId]
-					local newActivePlayerCount = allyTeamActivePlayerCount[allyTeam] + 1
-					allyTeamActivePlayerCount[allyTeam] = newActivePlayerCount
-					teamNameAddInfoTexts[playerToTeam[playerId]]:setColorOnOff(true)
-					addChatLine(getGameFrame(), getPlayerName(playerId) .. " has been added to the KOTH session.")
-				end
+				deniedInitPlayers:add(playerId)
+				return
 			end
+			if packet.version < kothWidgetVersion then
+				addChatLine(getGameFrame(), getPlayerName(playerId) .. "'s KOTH widget version (" .. packet.version .. ") is not compatible with yours (" .. kothWidgetVersion .. "). Please ask them to update their widget and try again.")
+				deniedInitPlayers:add(playerId)
+				return
+			end
+			activePlayers:add(playerId)
+			local allyTeam = playerToAllyTeam[playerId]
+			local newActivePlayerCount = allyTeamActivePlayerCount[allyTeam] + 1
+			allyTeamActivePlayerCount[allyTeam] = newActivePlayerCount
+			teamNameAddInfoTexts[playerToTeam[playerId]]:setColorOnOff(true)
+			addChatLine(getGameFrame(), getPlayerName(playerId) .. " has been added to the KOTH session.")
 		else
 			log("error", "Unrecognized packet: " .. msg)
 		end
