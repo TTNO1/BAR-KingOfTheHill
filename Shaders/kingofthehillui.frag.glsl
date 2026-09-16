@@ -94,7 +94,7 @@ void main()
 	vec2 box = vec2(progressBarHalfWidth, halfHeight);
 	float sd = signedDistanceBox(pixelCoord, box, borderRadius);
 	
-	float borderFactor = min(max(sd + borderThickness, 0), 1);
+	float borderFactor = min(max((sd + borderThickness)*100.0, 0), 1);
 	float alphaFactor = max(min(-sd*0.65 + borderThickness, 1), 0);
 	
 	fragColor = ((1 - borderFactor) * fragColor) + (borderFactor * borderColor);

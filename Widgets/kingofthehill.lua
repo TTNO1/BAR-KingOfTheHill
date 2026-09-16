@@ -588,6 +588,11 @@ local function insertArrayIntoArray(valueArray, containerArray)
 	end
 end
 
+-- Returns the number rounded to the nearest integer using traditional rounding rules
+local function round(number)
+	return floor(number + 0.5)
+end
+
 local framesPerDay = fps * 3600 * 24
 -- Gets the current game frame
 local function getGameFrame()
@@ -2114,11 +2119,11 @@ local function updateUIBoxPosition()
 	local right = ceil(belowBoxPos[4])
 	local scale = belowBoxPos[5]
 	
-	local scaledBoxVerticalPadding = ceil(uiBoxVerticalPadding * scale)
-	local scaledBarHeight = ceil(progressBarHeight * scale)
-	local scaledBarVerticalSpacing = ceil(progressBarVerticalSpacing * scale)
-	local scaledCaptureBarHeight = ceil(captureProgressBarHeight * scale)
-	local scaledCaptureBarTopMargin = ceil(captureProgressBarTopMargin * scale)
+	local scaledBoxVerticalPadding = round(uiBoxVerticalPadding * scale)
+	local scaledBarHeight = round(progressBarHeight * scale)
+	local scaledBarVerticalSpacing = round(progressBarVerticalSpacing * scale)
+	local scaledCaptureBarHeight = round(captureProgressBarHeight * scale)
+	local scaledCaptureBarTopMargin = round(captureProgressBarTopMargin * scale)
 	local scaledUIBoxHeight = ((scaledBarHeight + scaledBarVerticalSpacing) * numAllyTeams) +
 								(2 * scaledBoxVerticalPadding) - scaledBarVerticalSpacing +
 								scaledCaptureBarTopMargin + scaledCaptureBarHeight
@@ -2127,15 +2132,15 @@ local function updateUIBoxPosition()
 	local modOptionNameFont = modOptionNameAddInfoTexts[1].bold and exo2SemiBoldFont or exo2Font
 	local modOptionValueFont = modOptionValueAddInfoTexts[1].bold and exo2SemiBoldFont or exo2Font
 	
-	local scaledAddInfoTeamTextHeight = ceil(teamNameFont:GetTextHeight("A") * fontSizes.addInfoTeamNames * scale)
-	local scaledAddInfoModOptionTextHeight = ceil(max(
+	local scaledAddInfoTeamTextHeight = round(teamNameFont:GetTextHeight("A") * fontSizes.addInfoTeamNames * scale)
+	local scaledAddInfoModOptionTextHeight = round(max(
 		modOptionNameFont:GetTextHeight("A") * fontSizes.addInfoModOptionNames * scale,
 		modOptionValueFont:GetTextHeight("A") * fontSizes.addInfoModOptionValues * scale
 	))
-	local scaledAddInfoTeamVerticalSpacing = ceil(addInfoVerticalSpacing.teamMargin * scale)
-	local scaledAddInfoModOptionVerticalSpacing = ceil(addInfoVerticalSpacing.modOptionMargin * scale)
-	local scaledAddInfoAllyTeamVerticalSpacing = ceil(addInfoVerticalSpacing.allyTeamMargin * scale)
-	local scaledAddInfoSectionVerticalSpacing = ceil(addInfoVerticalSpacing.sectionMargin * scale)
+	local scaledAddInfoTeamVerticalSpacing = round(addInfoVerticalSpacing.teamMargin * scale)
+	local scaledAddInfoModOptionVerticalSpacing = round(addInfoVerticalSpacing.modOptionMargin * scale)
+	local scaledAddInfoAllyTeamVerticalSpacing = round(addInfoVerticalSpacing.allyTeamMargin * scale)
+	local scaledAddInfoSectionVerticalSpacing = round(addInfoVerticalSpacing.sectionMargin * scale)
 	local scaledAddInfoUIBoxHeight = (scaledAddInfoTeamTextHeight * numTeams) + (scaledAddInfoTeamVerticalSpacing * (numTeams - numAllyTeams)) +
 										(scaledAddInfoAllyTeamVerticalSpacing * (numAllyTeams - 1)) +
 										scaledAddInfoSectionVerticalSpacing +
@@ -2162,9 +2167,9 @@ local function updateUIBoxPosition()
 		scale = scale
 	}
 	
-	local absUIBoxHorizontalPadding = uiBoxHorizontalPadding * uiBoxPosition.width
-	local absProgressBarWidth = progressBarWidth * uiBoxPosition.width
-	local absTimerLeftMargin = timerLeftMargin * uiBoxPosition.width
+	local absUIBoxHorizontalPadding = round(uiBoxHorizontalPadding * uiBoxPosition.width)
+	local absProgressBarWidth = round(progressBarWidth * uiBoxPosition.width)
+	local absTimerLeftMargin = round(timerLeftMargin * uiBoxPosition.width)
 	
 	uiBoxElement:setPos(uiBoxPosition)
 	addInfoBoxElement:setPos(addInfoBoxPosition)
@@ -2242,11 +2247,11 @@ local function updateUIBoxPosition()
 		textTopCoord = textTopCoord - scaledAddInfoModOptionTextHeight - scaledAddInfoModOptionVerticalSpacing
 	end
 	
-	UIBar.borderThickness:set(floor(progressBarBorderThickness * scale + 0.5))
-	UIBar.borderRadius:set(floor(progressBarBorderRadius * scale + 0.5))
-	UIBar.progressBarHalfWidth:set(absProgressBarWidth/2 - 0.5)--subtract 0.5 so that signed distance box aligns with pixels
-	UIBar.allyTeamBarHalfHeight:set(scaledBarHeight/2 - 0.5)
-	UIBar.captureBarHalfHeight:set(scaledCaptureBarHeight/2 - 0.5)
+	UIBar.borderThickness:set(round(progressBarBorderThickness * scale))
+	UIBar.borderRadius:set(round(progressBarBorderRadius * scale))
+	UIBar.progressBarHalfWidth:set(absProgressBarWidth/2 - 0.0)--subtract 0.5 so that signed distance box aligns with pixels
+	UIBar.allyTeamBarHalfHeight:set(scaledBarHeight/2 - 0.0)
+	UIBar.captureBarHalfHeight:set(scaledCaptureBarHeight/2 - 0.0)
 	
 end
 
