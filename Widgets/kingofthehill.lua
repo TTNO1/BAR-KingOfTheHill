@@ -2902,13 +2902,15 @@ function widget:UnitDamaged(unitID, unitDefID, unitTeam, damage, paralyzer, weap
 	if lastGameFrame - lastCheckedFrame < minFramesBetweenDamageCheck then
 		return
 	end
-	if unitTeam == myTeam and attackerTeam and attackerID and teamToAllyTeam[attackerTeam] ~= myAllyTeam then
+	--We assume that this will be the attacking unit because the attackerID and attackerTeam arguments are always nil in unsynced
+	local lastAttackerID = Spring.GetUnitLastAttacker(unitID)
+	local lastAttackerTeam = lastAttackerID and Spring.GetUnitTeam(lastAttackerID)
+	if unitTeam == myTeam and lastAttackerID and lastAttackerTeam and teamToAllyTeam[lastAttackerTeam] ~= myAllyTeam then
 		lastCheckedFrame = lastGameFrame
 		local unitX, _, unitZ = Spring.GetUnitPosition(unitID)
 		if myStartBox:isPointInside(unitX, unitZ) then
-			local packet = DamageInBoxUIPacket.new({attackerTeam = attackerTeam, attackerUnit = attackerID})
+			local packet = DamageInBoxUIPacket.new({attackerTeam = lastAttackerTeam, attackerUnit = lastAttackerID})
 			packet:send()
-			packet:queueUpdate()
 		end
 	end
 end
