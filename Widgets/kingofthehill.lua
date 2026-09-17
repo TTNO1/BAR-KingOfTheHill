@@ -252,7 +252,8 @@ local mapAreaFragmentShaderPath = "LuaUI/Shaders/kingofthehillmaparea.frag.glsl"
 --The size of the arrays in the fragment shaders
 local fragmentShaderMaxTeams = 32
 
--- The thickness of the progress bar outlines in pixels
+-- The thickness of the progress bar outlines in pixels. The border is inset and consists of
+-- 1x borderThickness of solid pixels and 1x borderThickness of blurred 'glowing' effect pixels.
 local progressBarBorderThickness = 1
 
 -- The border radius of the progress bar outlines in pixels
@@ -2249,9 +2250,9 @@ local function updateUIBoxPosition()
 	
 	UIBar.borderThickness:set(round(progressBarBorderThickness * scale))
 	UIBar.borderRadius:set(round(progressBarBorderRadius * scale))
-	UIBar.progressBarHalfWidth:set(absProgressBarWidth/2 - 0.0)--subtract 0.5 so that signed distance box aligns with pixels
-	UIBar.allyTeamBarHalfHeight:set(scaledBarHeight/2 - 0.0)
-	UIBar.captureBarHalfHeight:set(scaledCaptureBarHeight/2 - 0.0)
+	UIBar.progressBarHalfWidth:set(absProgressBarWidth/2)
+	UIBar.allyTeamBarHalfHeight:set(scaledBarHeight/2)
+	UIBar.captureBarHalfHeight:set(scaledCaptureBarHeight/2)
 	
 end
 

@@ -83,20 +83,20 @@ void main()
 	}
 	
 	//used to change colors for filled portion and unfilled portion of bar
-	float fillFactor = max(min((progressThreshold - pixelCoord.x), 1), 0);
+	float fillFactor = clamp(progressThreshold - pixelCoord.x, 0.0, 1.0);
 	
 	float scaledYCoord = pixelCoord.y/halfHeight + 1;
 	//used to create a vertical gradient along the bar
 	float verticalGradientFactor = 0.8 + scaledYCoord * scaledYCoord * 0.125;
 	
-	fragColor = (color * verticalGradientFactor * fillFactor) + ((1 - fillFactor) * BACKGROUND_COLOR);
+	fragColor = mix(BACKGROUND_COLOR, color * verticalGradientFactor, fillFactor);
 	
 	vec2 box = vec2(progressBarHalfWidth, halfHeight);
 	float sd = signedDistanceBox(pixelCoord, box, borderRadius);
 	
-	float borderFactor = min(max((sd + borderThickness)*100.0, 0), 1);
-	float alphaFactor = max(min(-sd*0.65 + borderThickness, 1), 0);
+	float borderFactor = step(-2.0*borderThickness, sd) * smoothstep(-borderThickness*0.55, borderThickness, -sd);
+	//float alphaFactor = clamp(-(sd/borderThickness)*0.65 + 1.0, 0.0, 1.0);
 	
-	fragColor = ((1 - borderFactor) * fragColor) + (borderFactor * borderColor);
-	fragColor.w = fragColor.w * alphaFactor;
+	fragColor = mix(fragColor, borderColor, borderFactor);
+	//fragColor.w = fragColor.w * alphaFactor;
 }
