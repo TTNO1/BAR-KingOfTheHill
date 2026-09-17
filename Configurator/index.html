@@ -83,13 +83,17 @@
 				
 				<div class="option-row">
 					<div class="option-control">
-						<label class="flat-checkbox">
-							<input type="checkbox" id="buildInBoxes" checked>
-							Build in Start Box
-						</label>
+						<div class="input-group">
+							<label for="startBoxBuildRule">Build Rule</label>
+							<select id="startBoxBuildRule" class="flat-select">
+								<option value="1" selected>Only in Start Box</option>
+								<option value="2">Anywhere Except Enemy Start Box</option>
+								<option value="3">Anywhere</option>
+							</select>
+						</div>
 					</div>
 					<div class="option-desc">
-						If enabled, players can only build units inside of their team's start box. If disabled, they can build anywhere.
+						Specifies where players are allowed to build buildings.
 					</div>
 				</div>
 				
@@ -105,7 +109,7 @@
 						</div>
 					</div>
 					<div class="option-desc">
-						Specifies who is allowed to build in the hill area. This option is independent of the 'Build in Start Box' option.
+						Specifies who is allowed to build buildings in the hill area. This option is independent of the 'Build Rule' option.
 					</div>
 				</div>
 

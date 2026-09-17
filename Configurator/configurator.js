@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
             yProp: 0.5        // normalized center Y
         },
         options: {
-            buildInBoxes: true,
+            startBoxBuildRule: 1,
 			hillBuildRule: 2,
 			winKingTime: 360,
 			captureDelay: 15,
@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
         startboxSliderValue: document.getElementById('startboxSliderValue'),
         startboxSliderLabel: document.getElementById('startboxSliderLabel'),
         hillType: document.getElementById('hillType'),
-        buildInBoxes: document.getElementById('buildInBoxes'),
+        startBoxBuildRule: document.getElementById('startBoxBuildRule'),
 		hillBuildRule: document.getElementById('hillBuildRule'),
 		winKingTime: document.getElementById('winKingTime'),
 		captureDelay: document.getElementById('captureDelay'),
@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- MAIN FUNCTION TO BE CALLED ON ANY CHANGE ---
     function onInputChange() {
-        pageState.options.buildInBoxes = elements.buildInBoxes.checked;
+        pageState.options.startBoxBuildRule = parseInt(elements.startBoxBuildRule.value) || 1;
         pageState.options.hillBuildRule = parseInt(elements.hillBuildRule.value) || 2;
 		pageState.options.winKingTime = parseInt(elements.winKingTime.value) || 360;
 		pageState.options.captureDelay = parseInt(elements.captureDelay.value) || 15;
@@ -96,7 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
 `--###KOTH_MODOPTIONS###
 KOTHModoptions = {
 	hillAreaArgs = ${hillAreaArgsLuaTableString},
-	buildOutsideBoxes = ${!pageState.options.buildInBoxes},
+	startBoxBuildRule = ${pageState.options.startBoxBuildRule},
 	hillBuildRule = ${pageState.options.hillBuildRule},
 	winKingTime = ${pageState.options.winKingTime * 1000},
 	captureDelay = ${pageState.options.captureDelay * 1000},
@@ -473,7 +473,7 @@ KOTHModoptions = {
             onInputChange();
         });
 
-        elements.buildInBoxes.addEventListener('change', onInputChange);
+        elements.startBoxBuildRule.addEventListener('change', onInputChange);
 		elements.hillBuildRule.addEventListener('change', onInputChange);
 		elements.winKingTime.addEventListener('input', onInputChange);
 		elements.captureDelay.addEventListener('input', onInputChange);

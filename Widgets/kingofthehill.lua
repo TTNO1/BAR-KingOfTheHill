@@ -117,13 +117,17 @@ local max = math.max
 local abs = math.abs
 local loadstring = loadstring or load
 
-local CMD_MOVE = 10
-local CMD_PATROL = 15
-local CMD_FIGHT = 16
-local CMD_ATTACK = 20
-local CMD_FIRE_STATE = 45
-local CMD_SELF_DESTRUCT = 65
-local CMD_SET_TARGET = 34923
+local CMD = {
+	STOP = 0,
+	REMOVE = 2,
+	MOVE = 10,
+	PATROL = 15,
+	FIGHT = 16,
+	ATTACK = 20,
+	FIRE_STATE = 45,
+	SELF_DESTRUCT = 65,
+	SET_TARGET = 34923,
+}
 
 local FIRE_STATE_HOLD_FIRE = 0
 
@@ -154,7 +158,7 @@ local defaultCaptureQualifiedUnitNames = {
 local defaultModOptions = {
 	captureQualifiedUnitNames = defaultCaptureQualifiedUnitNames,
 	hillAreaArgs = {type = "circle", x = 0.5, z = 0.5, radius = 0.25},
-	buildOutsideBoxes = false,
+	startBoxBuildRule = 1,
 	hillBuildRule = 2,
 	winKingTime = 360000,
 	captureDelay = 15000,
@@ -637,8 +641,11 @@ local captureQualifiedUnitDefIds = Set.new()
 -- the MapArea defining the hill
 local hillArea
 
--- whether or not players can build outside of their start area
-local buildOutsideBoxes
+-- defines where players are allowed to build
+--		1 = players can only build in their own start box
+--		2 = players can build anywhere except in another team's start box
+--		3 = players can build anywhere
+local startBoxBuildRule
 
 -- defines who is allowed to build in the hill
 --		1 = no one can ever build in the hill
@@ -667,7 +674,7 @@ local noDamageInBoxes
 -- whether all units in the hill will explode when the king changes
 local explodeHillUnits
 
--- whether we should draw the start box outlines; only false if noDamageInBoxes is false and buildOutsideBoxes is true
+-- whether we should draw the start box outlines; only false if noDamageInBoxes is false and startBoxBuildRule is not allowed anywhere
 local shouldDrawStartBoxes
 
 -- #endregion
@@ -779,6 +786,11 @@ local damageInBoxUnits = Set.new()
 -- This queue is run asynchronously of the game state update processing, meaning the player will be deactivated on the
 -- actual game frame specified, not when that frame's update is processed. (See PlayerRemoved callin)
 local removedPlayerDeactivationQueue = MultiMap.new()
+
+-- A set of units for which we should remove the last command on the next update. This is used to cancel quick build
+-- commands from api_resource_spot_builder.lua because they do not trigger CommandNotify and the command cannot be
+-- removed until after UnitCommand
+local unitRemoveLastCommandQueue = Set.new()
 
 -- #endregion
 
@@ -1828,13 +1840,13 @@ local function loadModOptions()
 		return KOTHModoptions[key]
 	end
 	
-	buildOutsideBoxes = validateBoolean("buildOutsideBoxes")
-	
-	if type(KOTHModoptions.hillBuildRule) ~= "number" or KOTHModoptions.hillBuildRule ~= floor(KOTHModoptions.hillBuildRule) or KOTHModoptions.hillBuildRule < 1 or KOTHModoptions.hillBuildRule > 3 then
-		log("warning", "KOTHModoptions table does not contain a key 'hillBuildRule' that maps to an integer value in the range [1, 3]; resorting to default hillBuildRule")
-		KOTHModoptions.hillBuildRule = defaultModOptions.hillBuildRule
+	local validateInteger = function(key, min, max)
+		if type(KOTHModoptions[key]) ~= "number" or KOTHModoptions[key] ~= floor(KOTHModoptions[key]) or KOTHModoptions[key] < min or KOTHModoptions[key] > max then
+			log("warning", "KOTHModoptions table does not contain a key '" .. key .. "' that maps to an integer value in the range [" .. tostring(min) .. ", " .. tostring(max) .. "]; resorting to default " .. key)
+			KOTHModoptions[key] = defaultModOptions[key]
+		end
+		return KOTHModoptions[key]
 	end
-	hillBuildRule = KOTHModoptions.hillBuildRule
 	
 	local oneFrameMilliseconds = 1000/fps--1 frame in milliseconds
 	local validateDurationMilliseconds = function(key)
@@ -1849,6 +1861,10 @@ local function loadModOptions()
 		return KOTHModoptions[key], round(fps*KOTHModoptions[key]/1000)
 	end
 	
+	startBoxBuildRule = validateInteger("startBoxBuildRule", 1, 3)
+	
+	hillBuildRule = validateInteger("hillBuildRule", 1, 3)
+	
 	winKingTime, winKingTimeFrames = validateDurationMilliseconds("winKingTime")
 	
 	captureDelay, captureDelayFrames = validateDurationMilliseconds("captureDelay")
@@ -1859,7 +1875,7 @@ local function loadModOptions()
 	
 	explodeHillUnits = validateBoolean("explodeHillUnits")
 	
-	shouldDrawStartBoxes = noDamageInBoxes or not buildOutsideBoxes
+	shouldDrawStartBoxes = noDamageInBoxes or startBoxBuildRule ~= 3
 	
 end
 
@@ -2059,10 +2075,9 @@ function widget:Initialize()
 	myTeam = Spring.GetMyTeamID()
 	myStartBox = startBoxes[myAllyTeam]
 	
-	--Remove the call-ins that checks for damage if damage in boxes is allowed
+	--Remove the call-in that checks for damage if damage in boxes is allowed
 	if not noDamageInBoxes then
 		widgetHandler.RemoveCallIn(nil, "UnitDamaged")
-		widgetHandler.RemoveCallIn(nil, "UnitCommand")
 	end
 	
 	vsx, vsy = Spring.GetViewGeometry()
@@ -2292,16 +2307,27 @@ end
 
 local timeSinceLastSend = 0
 function widget:Update(dt)
-	if gameStarted then
-		widgetHandler.RemoveCallIn(nil, "Update")
-		return
+	if not gameStarted then
+		if timeSinceLastSend < sendInitPacketIntervalSecs then
+			timeSinceLastSend = timeSinceLastSend + dt
+			return
+		end
+		VersionInitUIPacket.new():send()
+		timeSinceLastSend = 0
 	end
-	if timeSinceLastSend < sendInitPacketIntervalSecs then
-		timeSinceLastSend = timeSinceLastSend + dt
-		return
+	
+	if unitRemoveLastCommandQueue.size > 0 then
+		for unitId in unitRemoveLastCommandQueue:iter() do
+			local commandCount = Spring.GetUnitCommandCount(unitId)
+			if commandCount == 1 then--keeps going unless stopped when cmd count = 1
+				Spring.GiveOrderToUnit(unitId, CMD.STOP)
+			else--remove last command
+				local latestCmdTag = select(3, Spring.GetUnitCurrentCommand(unitId, commandCount))
+				Spring.GiveOrderToUnit(unitId, CMD.REMOVE, {latestCmdTag})
+			end
+		end
+		unitRemoveLastCommandQueue:clear()
 	end
-	VersionInitUIPacket.new():send()
-	timeSinceLastSend = 0
 end
 
 -- Called whenever a player's status changes e.g. becoming a spectator. Also called when changing teams.
@@ -2369,12 +2395,22 @@ function widget:MousePress(x, y, button)
 	return false
 end
 
+-- Issues self-destruct commands to the unit and adds it to selfDestructingUnits
+local function destroyUnit(unitId)
+	if selfDestructingUnits:contains(unitId) then
+		return
+	end
+	Spring.GiveOrderToUnit(unitId, CMD.SELF_DESTRUCT)
+	selfDestructingUnits:add(unitId)--Add after command so we don't prevent our own command
+end
+
 -- Issues self-destruct commands to all my units and adds them all to selfDestructingUnits
 local function destroyAllUnits()
 	local myUnits = Set.new()
 	myUnits:addAll(Spring.GetTeamUnits(myTeam))
 	myUnits:removeAll(selfDestructingUnits)
-	Spring.GiveOrderToUnitMap(myUnits.elements, CMD_SELF_DESTRUCT)
+	Spring.GiveOrderToUnitMap(myUnits.elements, CMD.SELF_DESTRUCT)
+	selfDestructingUnits:addAll(myUnits)--Add after command so we don't prevent our own command
 end
 
 -- If the modoption is enabled, issues self-destruct commands to all hill buildings and adds all the hill buildings to selfDestructingUnits
@@ -2384,7 +2420,8 @@ local function destroyHillBuildings()
 	end
 	local freshHillBuildings = myHillBuildings:clone()
 	freshHillBuildings:removeAll(selfDestructingUnits)
-	Spring.GiveOrderToUnitMap(freshHillBuildings.elements, CMD_SELF_DESTRUCT)
+	Spring.GiveOrderToUnitMap(freshHillBuildings.elements, CMD.SELF_DESTRUCT)
+	selfDestructingUnits:addAll(freshHillBuildings)--Add after command so we don't prevent our own command
 end
 
 -- Removes the current king if any, adds this stint to his total, and destroys hill buildings if modoption is enabled
@@ -2480,7 +2517,7 @@ function widget:RecvLuaMsg(msg, playerId)
 			if packet.attackerTeam ~= myTeam then
 				return
 			end
-			Spring.GiveOrderToUnit(packet.attackerUnit, CMD_FIRE_STATE, {FIRE_STATE_HOLD_FIRE})--TODO make sure this works
+			Spring.GiveOrderToUnit(packet.attackerUnit, CMD.FIRE_STATE, {FIRE_STATE_HOLD_FIRE})--TODO make sure this works
 			damageInBoxUnits:add(packet.attackerUnit)
 		elseif packet.typeId == SelfDeactivationUIPacket.typeId then
 			playerDeactivationUpdates:put(packet.frame, playerId)
@@ -2788,8 +2825,39 @@ function widget:UnitDestroyed(unitID, unitDefID, unitTeam, attackerID, attackerD
 	myStartBoxBuildings:remove(unitID)
 end
 
+-- Determines if the given unitdef can be build at the given location according to the build rules set in the mod options.
+-- Returns true if it can be built.
+local function canBuildBuilding(x, z, rotation, unitDef)
+	if hillBuildRule == 3 and startBoxBuildRule == 3 then
+		return true
+	end
+	
+	-- rotation 0=south(-z), 1=east(+x), 2=north(+z), 3=west(-x), unitDef sizeX and sizeZ seem to refer to north/south orientation
+	local sizeX = (rotation % 2 == 0 and unitDef.xsize or unitDef.zsize) * squareSize
+	local sizeZ = (rotation % 2 == 0 and unitDef.zsize or unitDef.xsize) * squareSize
+	
+	if hillArea:isBuildingInside(x, z, sizeX, sizeZ) then
+		return hillBuildRule == 3 or (hillBuildRule == 2 and myAllyTeam == kingAllyTeam)
+	end
+	
+	if startBoxBuildRule == 1 then
+		return myStartBox:isBuildingInside(x, z, sizeX, sizeZ)
+	elseif startBoxBuildRule == 2 then
+		for allyTeamId, startBox in pairs(startBoxes) do
+			if allyTeamId ~= myAllyTeam and startBox:isBuildingInside(x, z, sizeX, sizeZ) then
+				return false
+			end
+		end
+	end
+	
+	return true
+end
+
 --Called at the moment the unit is created.
 --Used to track buildings inside the hill to be blown up upon transfer of the throne
+--Also used to destroy metal extractors and geothermal plants that are built in invalid positions
+--It is possible to prime a builder to build and then right-click on a resource spot and start building
+--before the command is removed via unitRemoveLastCommandQueue
 function widget:UnitCreated(unitID, unitDefID, unitTeam, builderID)
 	if unitTeam ~= myTeam then
 		return
@@ -2807,6 +2875,12 @@ function widget:UnitCreated(unitID, unitDefID, unitTeam, builderID)
 		if myStartBox:isBuildingInside(unitX, unitZ, sizeX, sizeZ) then
 			myStartBoxBuildings:add(unitID)
 		end
+		local customParams = unitDef.customParams
+		if customParams and (customParams.metal_extractor or customParams.geothermal) then
+			if not canBuildBuilding(unitX, unitZ, rotation, unitDef) then
+				destroyUnit(unitID)
+			end
+		end
 	end
 end
 
@@ -2814,14 +2888,14 @@ end
 -- Used to block build commands that are outside of permitted areas and to block any commands that are inside
 -- another team's start box
 function widget:CommandNotify(cmdID, cmdParams, cmdOptions)
-	if cmdID == CMD_MOVE or cmdID == CMD_PATROL or cmdID == CMD_FIGHT then
+	if cmdID == CMD.MOVE or cmdID == CMD.PATROL or cmdID == CMD.FIGHT then
 		local x, _, z = table.unpack(cmdParams)
 		for allyTeamId, startBox in pairs(startBoxes) do
 			if allyTeamId ~= myAllyTeam and startBox:isPointInside(x, z) then
 				return true
 			end
 		end
-	elseif cmdID == CMD_ATTACK or cmdID == CMD_SET_TARGET then
+	elseif cmdID == CMD.ATTACK or cmdID == CMD.SET_TARGET then
 		local x, z, r
 		if #cmdParams == 1 then
 			local targetUnit = cmdParams[1]
@@ -2835,41 +2909,15 @@ function widget:CommandNotify(cmdID, cmdParams, cmdOptions)
 				return true
 			end
 		end
-	elseif cmdID == CMD_SELF_DESTRUCT then
+	elseif cmdID == CMD.SELF_DESTRUCT then
 		if selfDestructingUnits:containsAny(Spring.GetSelectedUnits()) then
 			return true
 		end
-	end
-	
-	local buildingUnitDef = UnitDefs[-cmdID]
-	if buildingUnitDef and (buildingUnitDef.isBuilding or buildingUnitDef.isStaticBuilder) then
-		local cmdX, _, cmdZ, rotation = table.unpack(cmdParams)
-		-- rotation 0=south(-z), 1=east(+x), 2=north(+z), 3=west(-x), unitDef sizeX and sizeZ seem to refer to north/south orientation
-		local sizeX = (rotation % 2 == 0 and buildingUnitDef.xsize or buildingUnitDef.zsize) * squareSize
-		local sizeZ = (rotation % 2 == 0 and buildingUnitDef.zsize or buildingUnitDef.xsize) * squareSize
-		
-		if buildOutsideBoxes then
-			for allyTeamId, startBox in pairs(startBoxes) do
-				if allyTeamId ~= myAllyTeam and startBox:isBuildingInside(cmdX, cmdZ, sizeX, sizeZ) then
-					return true
-				end
-			end
-			if hillBuildRule == 1 or (hillBuildRule == 2 and myAllyTeam ~= kingAllyTeam) then
-				if hillArea:isBuildingInside(cmdX, cmdZ, sizeX, sizeZ) then
-					return true
-				end
-			end
-			return false
-		else
-			if myStartBox:isBuildingInside(cmdX, cmdZ, sizeX, sizeZ) then
-				return false
-			end
-			if hillBuildRule == 3 or (hillBuildRule == 2 and myAllyTeam == kingAllyTeam) then
-				if hillArea:isBuildingInside(cmdX, cmdZ, sizeX, sizeZ) then
-					return false
-				end
-			end
-			return true
+	elseif cmdID < 0 then
+		local buildingUnitDef = UnitDefs[-cmdID]
+		if buildingUnitDef and (buildingUnitDef.isBuilding or buildingUnitDef.isStaticBuilder) then
+			local cmdX, _, cmdZ, rotation = table.unpack(cmdParams)
+			return not canBuildBuilding(cmdX, cmdZ, rotation, buildingUnitDef)
 		end
 	end
 end
@@ -2879,20 +2927,33 @@ function widget:UnitCommandNotify(unitID, cmdID, cmdParams, cmdOptions)
 	return widget:CommandNotify(cmdID, cmdParams, cmdOptions)
 end
 
--- Called after a unit accepts a command. Used for fire state commands because they don't get passed into CommandNotify
+-- Called after a unit accepts a command. Used for fire state commands because they don't get passed into CommandNotify.
+-- Also used to stop api_resource_spot_builder.lua from building extractors outside boxes because those commands don't
+-- get passed to CommandNotify.
 function widget:UnitCommand(unitID, unitDefID, unitTeam, cmdID, cmdParams, cmdOpts, cmdTag)
-	if cmdID ~= CMD_FIRE_STATE or (cmdParams and cmdParams[1] == FIRE_STATE_HOLD_FIRE)
-			or unitTeam ~= myTeam or not damageInBoxUnits:contains(unitID) then
-		return
-	end
-	local unitX, _, unitZ = Spring.GetUnitPosition(unitID)
-	for allyTeamId, startBox in pairs(startBoxes) do
-		if allyTeamId ~= myAllyTeam and startBox:isPointInside(unitX, unitZ) then
-			Spring.GiveOrderToUnit(unitID, CMD_FIRE_STATE, {FIRE_STATE_HOLD_FIRE})--TODO make sure this works
-			return
+	if cmdID == CMD.FIRE_STATE then
+		if cmdParams and cmdParams[1] ~= FIRE_STATE_HOLD_FIRE and unitTeam == myTeam and damageInBoxUnits:contains(unitID) then
+			local unitX, _, unitZ = Spring.GetUnitPosition(unitID)
+			for allyTeamId, startBox in pairs(startBoxes) do
+				if allyTeamId ~= myAllyTeam and startBox:isPointInside(unitX, unitZ) then
+					Spring.GiveOrderToUnit(unitID, CMD.FIRE_STATE, {FIRE_STATE_HOLD_FIRE})
+					return
+				end
+			end
+			damageInBoxUnits:remove(unitID)
+		end
+	elseif cmdID < 0 then
+		local buildingUnitDef = UnitDefs[-cmdID]
+		local customParams = buildingUnitDef.customParams
+		if buildingUnitDef and customParams and
+				(customParams.metal_extractor or customParams.geothermal) then
+			local cmdX, _, cmdZ, rotation = table.unpack(cmdParams)
+			if not canBuildBuilding(cmdX, cmdZ, rotation, buildingUnitDef) then
+				--Add to queue to be removed because we can't get a valid cmdTag in this call-in
+				unitRemoveLastCommandQueue:add(unitID)
+			end
 		end
 	end
-	damageInBoxUnits:remove(unitID)
 end
 
 -- Called when a unit is damaged. Used to detect if units in hill are being damaged when noDamageInBoxes is true
