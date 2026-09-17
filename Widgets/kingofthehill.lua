@@ -2361,7 +2361,10 @@ function widget:MousePress(x, y, button)
 	if x <= playerListPosition.right and x >= playerListPosition.left and y >= playerListPosition.bottom and y <= playerListPosition.top then
 		triggerUIBoxResize()
 	elseif uiBoxElement:isPointInside(x, y) or (not addInfoBoxHidden and addInfoBoxElement:isPointInside(x, y)) then
-		addInfoBoxHidden = not addInfoBoxHidden
+		local alt, ctrl, meta, shift = Spring.GetModKeyState()
+		if not (alt or ctrl or meta or shift) then--prevent changing UI if accidentally clicked while issuing command
+			addInfoBoxHidden = not addInfoBoxHidden
+		end
 	end
 	return false
 end
@@ -2815,6 +2818,7 @@ function widget:CommandNotify(cmdID, cmdParams, cmdOptions)
 		local x, _, z = table.unpack(cmdParams)
 		for allyTeamId, startBox in pairs(startBoxes) do
 			if allyTeamId ~= myAllyTeam and startBox:isPointInside(x, z) then
+				Spring.Echo("Blocked move in enemy box")
 				return true
 			end
 		end
@@ -2873,6 +2877,7 @@ end
 
 -- Called by cmd_customformations2.lua when a formation command is issued
 function widget:UnitCommandNotify(unitID, cmdID, cmdParams, cmdOptions)
+	Spring.Echo("UnitNotify")
 	return widget:CommandNotify(cmdID, cmdParams, cmdOptions)
 end
 
@@ -2904,13 +2909,15 @@ function widget:UnitDamaged(unitID, unitDefID, unitTeam, damage, paralyzer, weap
 	end
 	--We assume that this will be the attacking unit because the attackerID and attackerTeam arguments are always nil in unsynced
 	local lastAttackerID = Spring.GetUnitLastAttacker(unitID)
-	local lastAttackerTeam = lastAttackerID and Spring.GetUnitTeam(lastAttackerID)
-	if unitTeam == myTeam and lastAttackerID and lastAttackerTeam and teamToAllyTeam[lastAttackerTeam] ~= myAllyTeam then
-		lastCheckedFrame = lastGameFrame
+	if unitTeam == myTeam and lastAttackerID and teamToAllyTeam[lastAttackerTeam] ~= myAllyTeam then
+		local lastAttackerTeam = Spring.GetUnitTeam(lastAttackerID)
 		local unitX, _, unitZ = Spring.GetUnitPosition(unitID)
 		if myStartBox:isPointInside(unitX, unitZ) then
 			local packet = DamageInBoxUIPacket.new({attackerTeam = lastAttackerTeam, attackerUnit = lastAttackerID})
 			packet:send()
+		else
+			--Only reset the timer if it was a false alarm so that we can quickly stop large wave attacks
+			lastCheckedFrame = lastGameFrame
 		end
 	end
 end
