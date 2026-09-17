@@ -20,10 +20,10 @@ layout (std140, binding = 6) uniform allyTeamColors
 };
 
 // The thickness of the progress bar outlines in pixels
-uniform int borderThickness;
+uniform float borderThickness;
 
 // The border radius of the progress bars in pixels
-uniform int borderRadius; 
+uniform float borderRadius; 
 
 // Half the width of every progress bar in pixels (assumed to all be the same)
 uniform float progressBarHalfWidth;
@@ -34,7 +34,7 @@ uniform float allyTeamBarHalfHeight;
 // Half the height of the capture progress bar in pixels
 uniform float captureBarHalfHeight;
 
-uniform int[MAX_TEAMS + 1] progressThresholds;// The progress threshold in pixel coords with origin at center of bar
+uniform float[MAX_TEAMS + 1] progressThresholds;// The progress threshold in pixel coords with origin at center of bar
 
 uniform int progressBarData;// 16 least significant bits are the index of the color in the colors array above
 							//  8 most significant bits are always zero since lua uses floats
@@ -59,7 +59,7 @@ void main()
 {
 	
 	vec4 color;
-	int progressThreshold;
+	float progressThreshold;
 	vec4 borderColor;
 	float halfHeight;
 	
@@ -85,7 +85,7 @@ void main()
 	//used to change colors for filled portion and unfilled portion of bar
 	float fillFactor = clamp(progressThreshold - pixelCoord.x, 0.0, 1.0);
 	
-	float scaledYCoord = pixelCoord.y/halfHeight + 1;
+	float scaledYCoord = pixelCoord.y/halfHeight + 1.0;
 	//used to create a vertical gradient along the bar
 	float verticalGradientFactor = 0.8 + scaledYCoord * scaledYCoord * 0.125;
 	
@@ -94,9 +94,9 @@ void main()
 	vec2 box = vec2(progressBarHalfWidth, halfHeight);
 	float sd = signedDistanceBox(pixelCoord, box, borderRadius);
 	
-	float borderFactor = step(-2.0*borderThickness, sd) * smoothstep(-borderThickness*0.55, borderThickness, -sd);
-	//float alphaFactor = clamp(-(sd/borderThickness)*0.65 + 1.0, 0.0, 1.0);
+	float borderFactor = step(-2.0*borderThickness, sd);
+	float alphaFactor = smoothstep(-borderThickness*0.45, borderThickness, -sd);//clamp(-(sd/borderThickness)*0.65 + 1.0, 0.0, 1.0);
 	
 	fragColor = mix(fragColor, borderColor, borderFactor);
-	//fragColor.w = fragColor.w * alphaFactor;
+	fragColor.w = fragColor.w * alphaFactor;
 }

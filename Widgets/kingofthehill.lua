@@ -798,7 +798,7 @@ local function intToBase94(num)
 		error("Cannot convert negative numbers to base94", 2)
 	end
 	
-	num = floor(num + 0.5)
+	num = round(num)
 	local result = ""
 	
 	repeat
@@ -1246,8 +1246,8 @@ end
 local UIBar = {
 	mt = {},
 	Flags = {CAPTURE_BAR = 0x00800000, DISQUALIFIED = 0x00400000},
-	borderThickness = UniformValue.new({name = "borderThickness", shader = progressBarShader, value = 0, type = UniformValue.Type.INT}),
-	borderRadius = UniformValue.new({name = "borderRadius", shader = progressBarShader, value = 0, type = UniformValue.Type.INT}),
+	borderThickness = UniformValue.new({name = "borderThickness", shader = progressBarShader, value = 0, type = UniformValue.Type.FLOAT}),
+	borderRadius = UniformValue.new({name = "borderRadius", shader = progressBarShader, value = 0, type = UniformValue.Type.FLOAT}),
 	progressBarHalfWidth = UniformValue.new({name = "progressBarHalfWidth", shader = progressBarShader, value = 0, type = UniformValue.Type.FLOAT}),
 	allyTeamBarHalfHeight = UniformValue.new({name = "allyTeamBarHalfHeight", shader = progressBarShader, value = 0, type = UniformValue.Type.FLOAT}),
 	captureBarHalfHeight = UniformValue.new({name = "captureBarHalfHeight", shader = progressBarShader, value = 0, type = UniformValue.Type.FLOAT}),
@@ -1273,7 +1273,7 @@ function UIBar.new(args)
 	args.shader = args.shader or progressBarShader
 	local progressIndex = args.isCaptureBar and fragmentShaderMaxTeams or args.allyTeamIndex
 	args.progress = args.progress or 0
-	args.progressThreshold = UniformValue.new({name = "progressThresholds[" .. progressIndex .. "]", shader = args.shader, value = 0, type = UniformValue.Type.INT})
+	args.progressThreshold = UniformValue.new({name = "progressThresholds[" .. progressIndex .. "]", shader = args.shader, value = 0, type = UniformValue.Type.FLOAT})
 	args.vbo = gl.GetVBO(GL.ARRAY_BUFFER, false)
 	args.vbo:Define(4, {{id = 0, name = "vertex_position", size = 2}, {id = 1, name = "pixel_coord", size = 2}})
 	args.vao = gl.GetVAO()
@@ -1320,7 +1320,7 @@ end
 function UIBar:setProgress(progress)
 	progress = max(min(progress, 1), 0)
 	self.progress = progress
-	local newProgressThreshold = floor((progress - 0.5) * self.width + 0.5)
+	local newProgressThreshold = round((progress - 0.5) * self.width)
 	if newProgressThreshold ~= self.progressThreshold.lastValue then
 		self.progressThreshold:set(newProgressThreshold)
 		self:invalidateData()
@@ -1846,7 +1846,7 @@ local function loadModOptions()
 			log("warning", "The value of '" .. key .. "' in KOTHModoptions is below 1 frame; resorting to 1 frame")
 			KOTHModoptions[key] = oneFrameMilliseconds
 		end
-		return KOTHModoptions[key], floor(fps*KOTHModoptions[key]/1000 + 0.5)
+		return KOTHModoptions[key], round(fps*KOTHModoptions[key]/1000)
 	end
 	
 	winKingTime, winKingTimeFrames = validateDurationMilliseconds("winKingTime")
