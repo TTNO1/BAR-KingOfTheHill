@@ -2818,7 +2818,6 @@ function widget:CommandNotify(cmdID, cmdParams, cmdOptions)
 		local x, _, z = table.unpack(cmdParams)
 		for allyTeamId, startBox in pairs(startBoxes) do
 			if allyTeamId ~= myAllyTeam and startBox:isPointInside(x, z) then
-				Spring.Echo("Blocked move in enemy box")
 				return true
 			end
 		end
@@ -2877,14 +2876,13 @@ end
 
 -- Called by cmd_customformations2.lua when a formation command is issued
 function widget:UnitCommandNotify(unitID, cmdID, cmdParams, cmdOptions)
-	Spring.Echo("UnitNotify")
 	return widget:CommandNotify(cmdID, cmdParams, cmdOptions)
 end
 
 -- Called after a unit accepts a command. Used for fire state commands because they don't get passed into CommandNotify
 function widget:UnitCommand(unitID, unitDefID, unitTeam, cmdID, cmdParams, cmdOpts, cmdTag)
-	-- cmdID seems to only equal CMD_FIRE_STATE when switching to 'return fire' or 'fire at will'
-	if cmdID ~= CMD_FIRE_STATE or unitTeam ~= myTeam or not damageInBoxUnits:contains(unitID) then
+	if cmdID ~= CMD_FIRE_STATE or (cmdParams and cmdParams[1] == FIRE_STATE_HOLD_FIRE)
+			or unitTeam ~= myTeam or not damageInBoxUnits:contains(unitID) then
 		return
 	end
 	local unitX, _, unitZ = Spring.GetUnitPosition(unitID)
