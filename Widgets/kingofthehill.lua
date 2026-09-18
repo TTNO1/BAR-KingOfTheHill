@@ -221,7 +221,7 @@ local addInfoVerticalSpacing = {
 	sectionMargin = 25,--space below a section (team list section)
 }
 
---Default font size of UI elements
+-- Default font size of UI elements
 local fontSizes = {
 	default = 13,
 	timers = 13,
@@ -230,6 +230,7 @@ local fontSizes = {
 	addInfoModOptionValues = 14,
 }
 
+-- Various font colors used in the widget
 local fontColors = {
 	white = {1, 1, 1, 1},
 	fadedGray = {0.7, 0.7, 0.7, 0.5},
@@ -239,21 +240,21 @@ local fontColors = {
 	red = {0.92, 0.05, 0.05, 1},
 }
 
---Defines the path to the regular font file
+-- Defines the path to the regular font file
 local exo2FontPath = "fonts/Exo2-Regular.otf"
 
---Defines the path to the semi-bold font file
+-- Defines the path to the semi-bold font file
 local exo2SemiBoldFontPath = "fonts/Exo2-SemiBold.otf"
 
---Progress bar shader file paths
-local progressBarVertexShaderPath = "LuaUI/Shaders/kingofthehillui.vert.glsl"
-local progressBarFragmentShaderPath = "LuaUI/Shaders/kingofthehillui.frag.glsl"
+-- Paths to shader files
+local shaderPaths = {
+	progressBarVertexShader = "LuaUI/Shaders/kingofthehillui.vert.glsl",
+	progressBarFragmentShader = "LuaUI/Shaders/kingofthehillui.frag.glsl",
+	mapAreaVertexShader = "LuaUI/Shaders/kingofthehillmaparea.vert.glsl",
+	mapAreaFragmentShader = "LuaUI/Shaders/kingofthehillmaparea.frag.glsl",
+}
 
---Map area shader file paths
-local mapAreaVertexShaderPath = "LuaUI/Shaders/kingofthehillmaparea.vert.glsl"
-local mapAreaFragmentShaderPath = "LuaUI/Shaders/kingofthehillmaparea.frag.glsl"
-
---The size of the arrays in the fragment shaders
+-- The size of the arrays in the fragment shaders
 local fragmentShaderMaxTeams = 32
 
 -- The thickness of the progress bar outlines in pixels. The border is inset and consists of
@@ -280,6 +281,16 @@ local maximumWaitFramesAfterDisconnect = fps * 20
 -- This represents the number of frames after the screen is resized for which we will
 -- update the widget box size to match those below it
 local maxScreenResizeCountdown = fps*2
+
+-- Intervals in seconds on which to check for invalid pregame build commands after the mouse is released
+local pregameBuildCheckIntervals = {
+	2/fps,
+	6/fps,
+	12/fps,
+}
+
+-- The number of intervals on which to check for invalid pregame build commands
+local numPregameBuildChecks = #pregameBuildCheckIntervals
 
 -- Before the game has started, a VersionInitUIPacket will be sent on this interval in seconds
 local sendInitPacketIntervalSecs = 1.5
@@ -792,6 +803,9 @@ local removedPlayerDeactivationQueue = MultiMap.new()
 -- removed until after UnitCommand
 local unitRemoveLastCommandQueue = Set.new()
 
+-- Used to count checks for invalid pregame build commands after a mouse release.
+local pregameBuildCheckCounter = 1--init to one so we check on load
+
 -- #endregion
 
 -- #region UIMsg
@@ -1000,16 +1014,16 @@ local addInfoBoxHidden = false
 local playerListPosition
 
 --The shaders for the progress bars
-local progressBarShader = gl.CreateShader({vertex = VFS.LoadFile(progressBarVertexShaderPath),
-												fragment = VFS.LoadFile(progressBarFragmentShaderPath)})
+local progressBarShader = gl.CreateShader({vertex = VFS.LoadFile(shaderPaths.progressBarVertexShader),
+												fragment = VFS.LoadFile(shaderPaths.progressBarFragmentShader)})
 if not progressBarShader then
 	log("error", "Failed to load progress bar shader")
 	log("error", "Shader Log: \n" .. gl.GetShaderLog())
 end
 
 --The shaders for the area outlines
-local mapAreaShader = gl.CreateShader({vertex = VFS.LoadFile(mapAreaVertexShaderPath):gsub("//##UBO##", gl.GetEngineUniformBufferDef(0)),
-											fragment = VFS.LoadFile(mapAreaFragmentShaderPath)})
+local mapAreaShader = gl.CreateShader({vertex = VFS.LoadFile(shaderPaths.mapAreaVertexShader):gsub("//##UBO##", gl.GetEngineUniformBufferDef(0)),
+											fragment = VFS.LoadFile(shaderPaths.mapAreaFragmentShader)})
 if not mapAreaShader then
 	log("error", "Failed to load map area shader")
 	log("error", "Shader Log: \n" .. gl.GetShaderLog())
@@ -2291,6 +2305,51 @@ function widget:ViewResize(vs_x, vs_y)
 	triggerUIBoxResize()
 end
 
+-- Determines if the given unitdef can be build at the given location according to the build rules set in the mod options.
+-- Returns true if it can be built.
+local function canBuildBuilding(x, z, rotation, unitDef)
+	if hillBuildRule == 3 and startBoxBuildRule == 3 then
+		return true
+	end
+	
+	-- rotation 0=south(-z), 1=east(+x), 2=north(+z), 3=west(-x), unitDef sizeX and sizeZ seem to refer to north/south orientation
+	local sizeX = (rotation % 2 == 0 and unitDef.xsize or unitDef.zsize) * squareSize
+	local sizeZ = (rotation % 2 == 0 and unitDef.zsize or unitDef.xsize) * squareSize
+	
+	if hillArea:isBuildingInside(x, z, sizeX, sizeZ) then
+		return hillBuildRule == 3 or (hillBuildRule == 2 and myAllyTeam == kingAllyTeam)
+	end
+	
+	if startBoxBuildRule == 1 then
+		return myStartBox:isBuildingInside(x, z, sizeX, sizeZ)
+	elseif startBoxBuildRule == 2 then
+		for allyTeamId, startBox in pairs(startBoxes) do
+			if allyTeamId ~= myAllyTeam and startBox:isBuildingInside(x, z, sizeX, sizeZ) then
+				return false
+			end
+		end
+	end
+	
+	return true
+end
+
+local function removeInvalidPregameBuilds()
+	local pregameBuild = WG["pregame-build"]
+	if not pregameBuild then
+		return
+	end
+	local newPregameBuildQueue = {}
+	Spring.Echo(dump(gameStarted) .. " " .. dump(pregameBuild.getBuildQueue()))
+	for _, entry in ipairs(pregameBuild.getBuildQueue()) do
+		local unitDefId, x, _, z, rotation = table.unpack(entry)
+		--negative first arg for cmdId
+		if unitDefId < 0 or canBuildBuilding(x, z, rotation, UnitDefs[unitDefId]) then
+			newPregameBuildQueue[#newPregameBuildQueue+1] = entry
+		end
+	end
+	pregameBuild.setBuildQueue(newPregameBuildQueue)
+end
+
 -- Called upon the start of the game.
 function widget:GameStart()
 	gameStarted = true
@@ -2301,19 +2360,37 @@ function widget:GameStart()
 			allyTeamProgressTimers[allyTeamId]:setDisqualified(true)
 		end
 	end
+	--it's possible to click fast enough and hold the mouse button down so that the mouse release
+	--is never registered in Update(), so we do one final check here
+	removeInvalidPregameBuilds()
 	--player list changes size
 	triggerUIBoxResize()
 end
 
 local timeSinceLastSend = 0
+local pregameBuildCheckTimer = 0
+-- Used to send VersionInitUIPackets before the game starts and cancel invalid pre-game build commands.
+-- Also removes the last command from units in unitRemoveLastCommandQueue.
 function widget:Update(dt)
 	if not gameStarted then
 		if timeSinceLastSend < sendInitPacketIntervalSecs then
 			timeSinceLastSend = timeSinceLastSend + dt
-			return
+		else
+			VersionInitUIPacket.new():send()
+			timeSinceLastSend = 0
 		end
-		VersionInitUIPacket.new():send()
-		timeSinceLastSend = 0
+		if pregameBuildCheckCounter <= numPregameBuildChecks then
+			local mouseDepressed = select(3, Spring.GetMouseState())
+			if not mouseDepressed or pregameBuildCheckCounter > 1 then--if the mouse was released now or previously
+				if pregameBuildCheckTimer >= pregameBuildCheckIntervals[pregameBuildCheckCounter] then
+					pregameBuildCheckCounter = pregameBuildCheckCounter + 1
+					pregameBuildCheckTimer = 0
+					removeInvalidPregameBuilds()
+				else
+					pregameBuildCheckTimer = pregameBuildCheckTimer + dt
+				end
+			end
+		end
 	end
 	
 	if unitRemoveLastCommandQueue.size > 0 then
@@ -2376,12 +2453,16 @@ function widget:PlayerRemoved(playerID, reason)
 	triggerUIBoxResize()
 end
 
---Called when a mouse button is pressed. The button parameter supports up to 7 buttons.
---Must return true for MouseRelease and other functions to be called.
---Used to resize our ui box whenever the player list box is clicked since it can change size when certain buttons are clicked.
+-- Called when a mouse button is pressed. The button parameter supports up to 7 buttons.
+-- Must return true for MouseRelease and other functions to be called.
+-- Used to resize our ui box whenever the player list box is clicked since it can change size when certain buttons are clicked.
+-- Also used to show/hide the additional info box on click and trigger checks for invalid pregame build commands.
 function widget:MousePress(x, y, button)
 	if button ~= 1 then
 		return false
+	end
+	if not gameStarted then
+		pregameBuildCheckCounter = 1
 	end
 	--If inside player list box
 	if x <= playerListPosition.right and x >= playerListPosition.left and y >= playerListPosition.bottom and y <= playerListPosition.top then
@@ -2823,34 +2904,6 @@ function widget:UnitDestroyed(unitID, unitDefID, unitTeam, attackerID, attackerD
 	myCaptureQualifiedUnits:remove(unitID)
 	myHillBuildings:remove(unitID)
 	myStartBoxBuildings:remove(unitID)
-end
-
--- Determines if the given unitdef can be build at the given location according to the build rules set in the mod options.
--- Returns true if it can be built.
-local function canBuildBuilding(x, z, rotation, unitDef)
-	if hillBuildRule == 3 and startBoxBuildRule == 3 then
-		return true
-	end
-	
-	-- rotation 0=south(-z), 1=east(+x), 2=north(+z), 3=west(-x), unitDef sizeX and sizeZ seem to refer to north/south orientation
-	local sizeX = (rotation % 2 == 0 and unitDef.xsize or unitDef.zsize) * squareSize
-	local sizeZ = (rotation % 2 == 0 and unitDef.zsize or unitDef.xsize) * squareSize
-	
-	if hillArea:isBuildingInside(x, z, sizeX, sizeZ) then
-		return hillBuildRule == 3 or (hillBuildRule == 2 and myAllyTeam == kingAllyTeam)
-	end
-	
-	if startBoxBuildRule == 1 then
-		return myStartBox:isBuildingInside(x, z, sizeX, sizeZ)
-	elseif startBoxBuildRule == 2 then
-		for allyTeamId, startBox in pairs(startBoxes) do
-			if allyTeamId ~= myAllyTeam and startBox:isBuildingInside(x, z, sizeX, sizeZ) then
-				return false
-			end
-		end
-	end
-	
-	return true
 end
 
 --Called at the moment the unit is created.
