@@ -2017,6 +2017,12 @@ function widget:Initialize()
 	captureProgressBar = UIBar.new({isCaptureBar = true, parent = uiBoxElement})
 	captureProgressTimer = UITextTimer.new({totalTimeSecs = captureDelay/1000, parent = uiBoxElement})
 	
+	local buildRuleAddInfoValues = {
+		[1] = {text = "Start Box", color = fontColors.red},
+		[2] = {text = "No Enemy Boxes", color = fontColors.yellow},
+		[3] = {text = "Anywhere", color = fontColors.green}
+	}
+	
 	local hillBuildRuleAddInfoValues = {
 		[1] = {text = "No One", color = fontColors.red},
 		[2] = {text = "King Only", color = fontColors.yellow},
@@ -2029,6 +2035,7 @@ function widget:Initialize()
 	}
 	
 	modOptionNameAddInfoTexts = {
+		UITextElement.new({text = "Build Rule: ", fontSize = fontSizes.addInfoModOptionNames, parent = addInfoBoxElement}),
 		UITextElement.new({text = "Hill Build Rule: ", fontSize = fontSizes.addInfoModOptionNames, parent = addInfoBoxElement}),
 		UITextElement.new({text = "King Keeps Hill: ", fontSize = fontSizes.addInfoModOptionNames, parent = addInfoBoxElement}),
 		UITextElement.new({text = "Hill Buildings Explode: ", fontSize = fontSizes.addInfoModOptionNames, parent = addInfoBoxElement}),
@@ -2036,6 +2043,15 @@ function widget:Initialize()
 	}
 	
 	modOptionValueAddInfoTexts = {
+		UITextElement.new({
+			text = buildRuleAddInfoValues[startBoxBuildRule].text,
+			color = buildRuleAddInfoValues[startBoxBuildRule].color,
+			textAlignment = UITextElement.TextAlignment.RIGHT,
+			outline = true,
+			fontSize = fontSizes.addInfoModOptionValues,
+			bold = true,
+			parent = addInfoBoxElement
+		}),
 		UITextElement.new({
 			text = hillBuildRuleAddInfoValues[hillBuildRule].text,
 			color = hillBuildRuleAddInfoValues[hillBuildRule].color,
@@ -2174,7 +2190,7 @@ local function updateUIBoxPosition()
 	local scaledAddInfoUIBoxHeight = (scaledAddInfoTeamTextHeight * numTeams) + (scaledAddInfoTeamVerticalSpacing * (numTeams - numAllyTeams)) +
 										(scaledAddInfoAllyTeamVerticalSpacing * (numAllyTeams - 1)) +
 										scaledAddInfoSectionVerticalSpacing +
-										((scaledAddInfoModOptionTextHeight + scaledAddInfoModOptionVerticalSpacing) * 4) -
+										((scaledAddInfoModOptionTextHeight + scaledAddInfoModOptionVerticalSpacing) * #modOptionNameAddInfoTexts) -
 										scaledAddInfoModOptionVerticalSpacing + (2 * scaledBoxVerticalPadding)
 	
 	uiBoxPosition = {
@@ -2324,7 +2340,7 @@ local function canBuildBuilding(x, z, rotation, unitDef)
 		return myStartBox:isBuildingInside(x, z, sizeX, sizeZ)
 	elseif startBoxBuildRule == 2 then
 		for allyTeamId, startBox in pairs(startBoxes) do
-			if allyTeamId ~= myAllyTeam and startBox:isBuildingInside(x, z, sizeX, sizeZ) then
+			if allyTeamId ~= myAllyTeam and startBox:isBuildingOverlapping(x, z, sizeX, sizeZ) then
 				return false
 			end
 		end
@@ -2339,7 +2355,6 @@ local function removeInvalidPregameBuilds()
 		return
 	end
 	local newPregameBuildQueue = {}
-	Spring.Echo(dump(gameStarted) .. " " .. dump(pregameBuild.getBuildQueue()))
 	for _, entry in ipairs(pregameBuild.getBuildQueue()) do
 		local unitDefId, x, _, z, rotation = table.unpack(entry)
 		--negative first arg for cmdId
@@ -2598,7 +2613,7 @@ function widget:RecvLuaMsg(msg, playerId)
 			if packet.attackerTeam ~= myTeam then
 				return
 			end
-			Spring.GiveOrderToUnit(packet.attackerUnit, CMD.FIRE_STATE, {FIRE_STATE_HOLD_FIRE})--TODO make sure this works
+			Spring.GiveOrderToUnit(packet.attackerUnit, CMD.FIRE_STATE, {FIRE_STATE_HOLD_FIRE})
 			damageInBoxUnits:add(packet.attackerUnit)
 		elseif packet.typeId == SelfDeactivationUIPacket.typeId then
 			playerDeactivationUpdates:put(packet.frame, playerId)
