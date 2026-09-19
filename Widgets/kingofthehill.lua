@@ -774,7 +774,7 @@ local capturingCompleteFrame = 0
 -- true = up = progressing toward capturing the hill, false = down = losing progress that was previously made
 local capturingCountingUp = false
 
--- a set of units that are currently counting down to be self-destructed. Used to block the user from
+-- A set of units that are currently counting down to be self-destructed. Used to block the user from
 -- stopping a widget-issued self-destruct command
 local selfDestructingUnits = Set.new()
 
@@ -2496,8 +2496,8 @@ local function destroyUnit(unitId)
 	if selfDestructingUnits:contains(unitId) then
 		return
 	end
+	selfDestructingUnits:add(unitId)
 	Spring.GiveOrderToUnit(unitId, CMD.SELF_DESTRUCT)
-	selfDestructingUnits:add(unitId)--Add after command so we don't prevent our own command
 end
 
 -- Issues self-destruct commands to all my units and adds them all to selfDestructingUnits
@@ -2505,8 +2505,8 @@ local function destroyAllUnits()
 	local myUnits = Set.new()
 	myUnits:addAll(Spring.GetTeamUnits(myTeam))
 	myUnits:removeAll(selfDestructingUnits)
+	selfDestructingUnits:addAll(myUnits)
 	Spring.GiveOrderToUnitMap(myUnits.elements, CMD.SELF_DESTRUCT)
-	selfDestructingUnits:addAll(myUnits)--Add after command so we don't prevent our own command
 end
 
 -- If the modoption is enabled, issues self-destruct commands to all hill buildings and adds all the hill buildings to selfDestructingUnits
@@ -2516,8 +2516,8 @@ local function destroyHillBuildings()
 	end
 	local freshHillBuildings = myHillBuildings:clone()
 	freshHillBuildings:removeAll(selfDestructingUnits)
+	selfDestructingUnits:addAll(freshHillBuildings)
 	Spring.GiveOrderToUnitMap(freshHillBuildings.elements, CMD.SELF_DESTRUCT)
-	selfDestructingUnits:addAll(freshHillBuildings)--Add after command so we don't prevent our own command
 end
 
 -- Removes the current king if any, adds this stint to his total, and destroys hill buildings if modoption is enabled
@@ -2923,8 +2923,8 @@ end
 
 --Called at the moment the unit is created.
 --Used to track buildings inside the hill to be blown up upon transfer of the throne
---Also used to destroy metal extractors and geothermal plants that are built in invalid positions
---It is possible to prime a builder to build and then right-click on a resource spot and start building
+--Also used to destroy metal extractors and geothermal plants that are built in invalid positions because
+--it is possible to prime a builder to build and then right-click on a resource spot and start building
 --before the command is removed via unitRemoveLastCommandQueue
 function widget:UnitCreated(unitID, unitDefID, unitTeam, builderID)
 	if unitTeam ~= myTeam then
@@ -2977,10 +2977,13 @@ function widget:CommandNotify(cmdID, cmdParams, cmdOptions)
 				return true
 			end
 		end
-	elseif cmdID == CMD.SELF_DESTRUCT then
-		if selfDestructingUnits:containsAny(Spring.GetSelectedUnits()) then
-			return true
+	elseif cmdID == CMD.SELF_DESTRUCT or cmdID == CMD.STOP then
+		local selectedUnits = Set.new()
+		selectedUnits:addAll(Spring.GetSelectedUnits())
+		if selectedUnits:removeAll(selfDestructingUnits) then
+			Spring.SelectUnitMap(selectedUnits.elements, false)
 		end
+		return false
 	elseif cmdID < 0 then
 		local buildingUnitDef = UnitDefs[-cmdID]
 		if buildingUnitDef and (buildingUnitDef.isBuilding or buildingUnitDef.isStaticBuilder) then

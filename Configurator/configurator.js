@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		if(pageState.hillConfig.shape == "Circle") {
 			let xProp = pageState.hillConfig.xProp;
 			let yProp = pageState.hillConfig.yProp;
-			let radius = Math.max(pageState.hillConfig.widthProp, pageState.hillConfig.heightProp);
+			let radius = Math.max(pageState.hillConfig.widthProp, pageState.hillConfig.heightProp)/2.0;
 			hillAreaArgsLuaTableString = `{type = "circle", x = ${xProp}, z = ${yProp}, radius = ${radius}}`;
 		} else {
 			let xProp = pageState.hillConfig.xProp;
