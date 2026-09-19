@@ -280,7 +280,7 @@ local maximumWaitFramesAfterDisconnect = fps * 20
 -- since the ordering of the size updates from the lower widgets is unknown to me.
 -- This represents the number of frames after the screen is resized for which we will
 -- update the widget box size to match those below it
-local maxScreenResizeCountdown = fps*2
+local maxScreenResizeCountdown = 20
 
 -- Intervals in seconds on which to check for invalid pregame build commands after the mouse is released
 local pregameBuildCheckIntervals = {
@@ -805,6 +805,10 @@ local unitRemoveLastCommandQueue = Set.new()
 
 -- Used to count checks for invalid pregame build commands after a mouse release.
 local pregameBuildCheckCounter = 1--init to one so we check on load
+
+-- A set of all players from which we have received an ActivityEvent. This is used to trigger a UI box resize when
+-- a player connects and causes the player list box to resize.
+local receivedActivityEventPlayers = Set.new()
 
 -- #endregion
 
@@ -2438,14 +2442,21 @@ function widget:PlayerChanged(playerID)
 end
 
 -- Called whenever a new player joins the game.
--- Used to send a VersionInitUIPacket whenever a player joins and the game is not yet started.
--- Also resizes the UI box because the player list box below changes size and
--- adds the player to playerToAllyTeam and playerToTeam
+-- Resizes the UI box because the player list box below might change size
+-- and adds the player to playerToAllyTeam and playerToTeam
 function widget:PlayerAdded(playerID)
 	local _, _, _, teamId, allyTeamId = Spring.GetPlayerInfo(playerID)
 	playerToAllyTeam[playerID] = allyTeamId
 	playerToTeam[playerID] = teamId
 	triggerUIBoxResize()
+end
+
+-- Called to indicate player is not idle.
+-- The player list box changes size when the player sends first activity event.
+function widget:ActivityEvent(playerID)
+	if not gameStarted and receivedActivityEventPlayers:add(playerID) then
+		triggerUIBoxResize()
+	end
 end
 
 -- Called whenever a player is removed from the game.
