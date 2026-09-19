@@ -280,7 +280,7 @@ local maximumWaitFramesAfterDisconnect = fps * 20
 -- since the ordering of the size updates from the lower widgets is unknown to me.
 -- This represents the number of frames after the screen is resized for which we will
 -- update the widget box size to match those below it
-local maxScreenResizeCountdown = 20
+local maxScreenResizeCountdown = fps
 
 -- Intervals in seconds on which to check for invalid pregame build commands after the mouse is released
 local pregameBuildCheckIntervals = {
@@ -1419,7 +1419,7 @@ function UIMapArea:updatePosition()
 		local x = xzVertex[1]
 		local z = xzVertex[2]
 		vertices[offset] = x
-		vertices[offset + 1] = Spring.GetGroundHeight(x, z) + mapAreaLineVertexVerticalShift--TODO test what happens when outline goes outside map and make this work on water
+		vertices[offset + 1] = Spring.GetGroundHeight(x, z) + mapAreaLineVertexVerticalShift
 		vertices[offset + 2] = z
 	end
 	self.vbo:Upload(vertices)
@@ -3041,10 +3041,6 @@ end
 -- Called when a unit is damaged. Used to detect if units in hill are being damaged when noDamageInBoxes is true
 local lastCheckedFrame = -math.huge
 function widget:UnitDamaged(unitID, unitDefID, unitTeam, damage, paralyzer, weaponDefID, projectileID, attackerID, attackerDefID, attackerTeam)
-	if not noDamageInBoxes then--TODO remove this if it works
-		log("error", "Call-in was not removed!!! (UnitDamaged)")
-		return
-	end
 	if lastGameFrame - lastCheckedFrame < minFramesBetweenDamageCheck then
 		return
 	end
