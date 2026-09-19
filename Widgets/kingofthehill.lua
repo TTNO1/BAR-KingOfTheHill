@@ -280,7 +280,7 @@ local maximumWaitFramesAfterDisconnect = fps * 20
 -- since the ordering of the size updates from the lower widgets is unknown to me.
 -- This represents the number of frames after the screen is resized for which we will
 -- update the widget box size to match those below it
-local maxScreenResizeCountdown = fps
+local maxScreenResizeCountdown = 20
 
 -- Intervals in seconds on which to check for invalid pregame build commands after the mouse is released
 local pregameBuildCheckIntervals = {
@@ -2389,6 +2389,7 @@ end
 local timeSinceLastSend = 0
 local pregameBuildCheckTimer = 0
 -- Used to send VersionInitUIPackets before the game starts and cancel invalid pre-game build commands.
+-- Also resizes the UI box before the game starts to deal with player list resizing.
 -- Also removes the last command from units in unitRemoveLastCommandQueue.
 function widget:Update(dt)
 	if not gameStarted then
@@ -2397,6 +2398,7 @@ function widget:Update(dt)
 		else
 			VersionInitUIPacket.new():send()
 			timeSinceLastSend = 0
+			updateUIBoxPosition()
 		end
 		if pregameBuildCheckCounter <= numPregameBuildChecks then
 			local mouseDepressed = select(3, Spring.GetMouseState())
@@ -2967,28 +2969,32 @@ end
 -- Used to block build commands that are outside of permitted areas and to block any commands that are inside
 -- another team's start box
 function widget:CommandNotify(cmdID, cmdParams, cmdOptions)
-	if cmdID == CMD.MOVE or cmdID == CMD.PATROL or cmdID == CMD.FIGHT then
-		local x, _, z = table.unpack(cmdParams)
-		for allyTeamId, startBox in pairs(startBoxes) do
-			if allyTeamId ~= myAllyTeam and startBox:isPointInside(x, z) then
-				return true
+	if noDamageInBoxes then
+		if cmdID == CMD.MOVE or cmdID == CMD.PATROL or cmdID == CMD.FIGHT then
+			local x, _, z = table.unpack(cmdParams)
+			for allyTeamId, startBox in pairs(startBoxes) do
+				if allyTeamId ~= myAllyTeam and startBox:isPointInside(x, z) then
+					return true
+				end
+			end
+		elseif cmdID == CMD.ATTACK or cmdID == CMD.SET_TARGET then
+			local x, z, r
+			if #cmdParams == 1 then
+				local targetUnit = cmdParams[1]
+				x, _, z = Spring.GetUnitPosition(targetUnit)
+				r = 0
+			else
+				x, _, z, r = table.unpack(cmdParams)
+			end
+			for allyTeamId, startBox in pairs(startBoxes) do
+				if allyTeamId ~= myAllyTeam and startBox:isCircleOverlapping(x, z, r) then
+					return true
+				end
 			end
 		end
-	elseif cmdID == CMD.ATTACK or cmdID == CMD.SET_TARGET then
-		local x, z, r
-		if #cmdParams == 1 then
-			local targetUnit = cmdParams[1]
-			x, _, z = Spring.GetUnitPosition(targetUnit)
-			r = 0
-		else
-			x, _, z, r = table.unpack(cmdParams)
-		end
-		for allyTeamId, startBox in pairs(startBoxes) do
-			if allyTeamId ~= myAllyTeam and startBox:isCircleOverlapping(x, z, r) then
-				return true
-			end
-		end
-	elseif cmdID == CMD.SELF_DESTRUCT or cmdID == CMD.STOP then
+	end
+	
+	if cmdID == CMD.SELF_DESTRUCT or cmdID == CMD.STOP then
 		local selectedUnits = Set.new()
 		selectedUnits:addAll(Spring.GetSelectedUnits())
 		if selectedUnits:removeAll(selfDestructingUnits) then
