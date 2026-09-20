@@ -1,6 +1,3 @@
-<!--# King of the Hill
-This is a widget for [Beyond All Reason](https://github.com/beyond-all-reason/Beyond-All-Reason) that adds a king of the hill game mode.-->
-
 # King of the Hill (Beta)
 
 This widget adds a 'king of the hill' game mode to BAR.<br>
@@ -11,7 +8,7 @@ In this game mode, a team wins by spending a certain amount of time as the king.
 ## How to Use
 
 ### Installation
-To install the widget, copy [kingofthehill.lua](https://github.com/TTNO1/BAR-KingOfTheHill/blob/master/Widgets/kingofthehill.lua) ([raw](https://github.com/TTNO1/BAR-KingOfTheHill/raw/refs/heads/master/Widgets/kingofthehill.lua)) into your `LuaUI/Widgets` folder and copy all of the [shader files](https://github.com/TTNO1/BAR-KingOfTheHill/tree/master/Shaders) into your `LuaUI/Shaders` folder.
+To install the widget, copy the [king_of_the_hill](<https://github.com/TTNO1/BAR-KingOfTheHill/tree/master/king_of_the_hill>) folder ([click here for zip](<https://downgit.github.io/#/home?url=https://github.com/TTNO1/BAR-KingOfTheHill/tree/master/king_of_the_hill>)) into your `LuaUI/Widgets` folder.
 
 The widget must be installed by every player in the match. If one player does not have it, they will not be a part of the KOTH game.
 
@@ -112,7 +109,7 @@ A list of unit names can be found [here](https://github.com/beyond-all-reason/Be
 </details><br>
 
 **To easily configure the mod options** to your liking, you can use this webpage:
-[https://ttno1.github.io/BAR-KingOfTheHill](https://ttno1.github.io/BAR-KingOfTheHill).<br>
+[<https://ttno1.github.io/BAR-KingOfTheHill>](<https://ttno1.github.io/BAR-KingOfTheHill>).<br>
 It will allow you to graphically configure the hill region and easily select all of the other mod options. The output can then be copied and pasted as Base64 encoded Lua into the *tweakdefs* modoption or as Lua code onto your existing *tweakdefs* code.
 
 Additionally, it is highly recommended to enable **respawning commanders** when playing King of the Hill.
@@ -125,8 +122,6 @@ This box will automatically hide itself once the game starts. You can show and h
 
 Below that is a box with several progress bars. Each team has a progress bar that indicates how much time they must spend as the king before they win.<br>
 At the bottom, the larger progress bar indicates which team is capturing the hill and how much time is left before they capture it.
-
-
 
 ## Limitations
 - Every player must have the widget installed.
