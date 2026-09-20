@@ -104,7 +104,7 @@ This widget will block you from canceling the self-destruct command.
 *Default:* `true`
 
 ### `allUnitsCaptureQualified`:boolean
-If `true`, all unit types that are not buildings will be capture-qualified. This will override the `captureQualifiedUnitNames` option.<br>
+If `true`, all unit types that are not buildings and not aircraft will be capture-qualified. This will override the `captureQualifiedUnitNames` option.<br>
 If `false`, the `captureQualifiedUnitNames` option is used to determine which unit types are capture-qualified.
 
 *Default:* `true`
@@ -124,7 +124,7 @@ A list of unit names can be found [here](https://github.com/beyond-all-reason/Be
 [<https://ttno1.github.io/BAR-KingOfTheHill>](<https://ttno1.github.io/BAR-KingOfTheHill>).<br>
 It will allow you to graphically configure the hill region and easily select all of the other mod options. The output can then be copied and pasted as Base64 encoded Lua into the *tweakdefs* modoption or as Lua code onto your existing *tweakdefs* code.
 
-Additionally, it is highly recommended to enable **respawning commanders** when playing King of the Hill.
+Additionally, it is highly recommended to enable **respawning commanders** when playing King of the Hill with `allUnitsCaptureQualified` set to false and `captureQualifiedUnitNames` set to the default value (all commanders).
 
 ### How to Play
 

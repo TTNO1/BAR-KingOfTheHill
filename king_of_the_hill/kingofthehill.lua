@@ -138,7 +138,7 @@ local LINE_TYPE_SYSTEM = 5
 -- #region Configuration Constants
 
 --Defines the version of this widget. If two players are using different versions, they will not be able to play with each other.
-local kothWidgetVersion = 2
+local kothWidgetVersion = 3
 
 -- the widget name used for logging
 local logWidgetName = "KOTH"
@@ -2739,7 +2739,7 @@ function widget:GameFrame(frame)-- Note: first frame = 0
 				for i = 1, #myUnitsInHill do
 					local unitId = myUnitsInHill[i]
 					local unitDef = UnitDefs[Spring.GetUnitDefID(unitId)]
-					if not unitDef.isBuilding and not unitDef.isStaticBuilder then
+					if not unitDef.isAirUnit and not unitDef.isImmobile then
 						inHill = true
 						break
 					end
@@ -2956,7 +2956,7 @@ function widget:UnitCreated(unitID, unitDefID, unitTeam, builderID)
 		return
 	end
 	local unitDef = UnitDefs[unitDefID]
-	if unitDef.isBuilding or unitDef.isStaticBuilder then
+	if unitDef.isImmobile then
 		local rotation = Spring.GetUnitBuildFacing(unitID)
 		-- rotation 0=south(-z), 1=east(+x), 2=north(+z), 3=west(-x), unitDef sizeX and sizeZ seem to refer to north/south orientation
 		local sizeX = (rotation % 2 == 0 and unitDef.xsize or unitDef.zsize) * squareSize
@@ -3015,7 +3015,7 @@ function widget:CommandNotify(cmdID, cmdParams, cmdOptions)
 		return false
 	elseif cmdID < 0 then
 		local buildingUnitDef = UnitDefs[-cmdID]
-		if buildingUnitDef and (buildingUnitDef.isBuilding or buildingUnitDef.isStaticBuilder) then
+		if buildingUnitDef and (buildingUnitDef.isImmobile) then
 			local cmdX, _, cmdZ, rotation = table.unpack(cmdParams)
 			return not canBuildBuilding(cmdX, cmdZ, rotation, buildingUnitDef)
 		end
