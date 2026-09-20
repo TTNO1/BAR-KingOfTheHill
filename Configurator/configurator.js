@@ -320,7 +320,7 @@ KOTHModoptions = {
         
         // Target an initial dimension 25% of the shortest edge
         const minDim = Math.min(overlayRect.width, overlayRect.height);
-        const startSize = minDim * 0.25;
+        const startSize = minDim * 0.2;
         
         pageState.hillConfig.widthProp = startSize / overlayRect.width;
         pageState.hillConfig.heightProp = startSize / overlayRect.height;
