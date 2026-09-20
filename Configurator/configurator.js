@@ -18,19 +18,20 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         hillConfig: {
             shape: 'Circle',
-            widthProp: 0.25,  // fraction of map width
-            heightProp: 0.25, // fraction of map height
+            widthProp: 0.2,  // fraction of map width
+            heightProp: 0.2, // fraction of map height
             xProp: 0.5,       // normalized center X
             yProp: 0.5        // normalized center Y
         },
         options: {
             startBoxBuildRule: 1,
 			hillBuildRule: 2,
-			winKingTime: 360,
-			captureDelay: 15,
-			kingKeepsHill: true,
+			winKingTime: 120,
+			captureDelay: 5,
+			kingKeepsHill: false,
 			noDamageInBoxes: true,
 			explodeHillUnits: true,
+            allUnitsCaptureQualified: true,
 			outputType: "lua",
         }
     };
@@ -59,6 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		kingKeepsHill: document.getElementById('kingKeepsHill'),
 		noDamageInBoxes: document.getElementById('noDamageInBoxes'),
 		explodeHillUnits: document.getElementById('explodeHillUnits'),
+        allUnitsCaptureQualified: document.getElementById('allUnitsCaptureQualified'),
 		outputTextarea: document.getElementById('output-textarea'),
 		outputType: document.getElementById('outputType'),
     };
@@ -72,6 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		pageState.options.kingKeepsHill = elements.kingKeepsHill.checked;
         pageState.options.noDamageInBoxes = elements.noDamageInBoxes.checked;
 		pageState.options.explodeHillUnits = elements.explodeHillUnits.checked;
+        pageState.options.allUnitsCaptureQualified = elements.allUnitsCaptureQualified.checked;
 		pageState.options.outputType = elements.outputType.value;
 		
 		let hillAreaArgsLuaTableString
@@ -102,7 +105,8 @@ KOTHModoptions = {
 	captureDelay = ${pageState.options.captureDelay * 1000},
 	kingKeepsHill = ${pageState.options.kingKeepsHill},
 	noDamageInBoxes = ${pageState.options.noDamageInBoxes},
-	explodeHillUnits = ${pageState.options.explodeHillUnits}
+	explodeHillUnits = ${pageState.options.explodeHillUnits},
+    allUnitsCaptureQualified = ${pageState.options.allUnitsCaptureQualified},
 }
 --###KOTH_MODOPTIONS###`;
 		
@@ -480,6 +484,7 @@ KOTHModoptions = {
 		elements.kingKeepsHill.addEventListener('change', onInputChange);
 		elements.noDamageInBoxes.addEventListener('change', onInputChange);
 		elements.explodeHillUnits.addEventListener('change', onInputChange);
+        elements.allUnitsCaptureQualified.addEventListener('change', onInputChange);
 		elements.outputType.addEventListener('change', onInputChange);
     }
 

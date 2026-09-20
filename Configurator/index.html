@@ -117,7 +117,7 @@
 					<div class="option-control">
 						<div class="input-group">
 							<label for="winKingTime">King Win Time</label>
-							<input type="number" id="winKingTime" class="flat-input" value="360" step="1" min="1">
+							<input type="number" id="winKingTime" class="flat-input" value="120" step="1" min="1">
 						</div>
 					</div>
 					<div class="option-desc">
@@ -129,7 +129,7 @@
 					<div class="option-control">
 						<div class="input-group">
 							<label for="captureDelay">Capture Delay</label>
-							<input type="number" id="captureDelay" class="flat-input" value="15" step="1" min="1">
+							<input type="number" id="captureDelay" class="flat-input" value="5" step="1" min="1">
 						</div>
 					</div>
 					<div class="option-desc">
@@ -140,7 +140,7 @@
 				<div class="option-row">
 					<div class="option-control">
 						<label class="flat-checkbox">
-							<input type="checkbox" id="kingKeepsHill" checked>
+							<input type="checkbox" id="kingKeepsHill">
 							King Keeps Hill
 						</label>
 					</div>
@@ -170,6 +170,18 @@
 					</div>
 					<div class="option-desc">
 						If enabled, buildings built in the hill will be self-destructed whenever the king loses the hill.
+					</div>
+				</div>
+				
+				<div class="option-row">
+					<div class="option-control">
+						<label class="flat-checkbox">
+							<input type="checkbox" id="allUnitsCaptureQualified" checked>
+							All Units are Capture-Qualified
+						</label>
+					</div>
+					<div class="option-desc">
+						If enabled, all unit types that are not buildings will be capable of capturing the hill.
 					</div>
 				</div>
 

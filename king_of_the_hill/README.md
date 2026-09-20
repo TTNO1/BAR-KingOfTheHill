@@ -3,7 +3,7 @@
 This widget adds a 'king of the hill' game mode to BAR.<br>
 This widget must be installed by every player to work.
 
-In this game mode, a team wins by spending a certain amount of time as the king. A team becomes the king by being the only team with commander(s) in the hill for a certain amount of time. The hill is a configurable region on the map.
+In this game mode, a team wins by spending a certain amount of time as the king. A team becomes the king by being the only team with unit(s) in the hill for a certain amount of time. The hill is a configurable region on the map.
 
 ## How to Use
 
@@ -26,14 +26,15 @@ In between those lines, various settings can be configured as follows.
 ```Lua
 --###KOTH_MODOPTIONS###
 KOTHModoptions = {
-	hillAreaArgs = {type = "circle", x = 0.5, z = 0.5, radius = 0.25},
+	hillAreaArgs = {type = "circle", x = 0.5, z = 0.5, radius = 0.1},
 	startBoxBuildRule = 1,
 	hillBuildRule = 2,
-	winKingTime = 360000,
-	captureDelay = 15000,
-	kingKeepsHill = true,
+	winKingTime = 120000,
+	captureDelay = 5000,
+	kingKeepsHill = false,
 	noDamageInBoxes = true,
 	explodeHillUnits = true,
+	allUnitsCaptureQualified = true,
 	captureQualifiedUnitNames = {"armcom", "corcomlvl2", --[[etc.]]}
 }
 --###KOTH_MODOPTIONS###
@@ -102,8 +103,15 @@ This widget will block you from canceling the self-destruct command.
 
 *Default:* `true`
 
+### `allUnitsCaptureQualified`:boolean
+If `true`, all unit types that are not buildings will be capture-qualified. This will override the `captureQualifiedUnitNames` option.<br>
+If `false`, the `captureQualifiedUnitNames` option is used to determine which unit types are capture-qualified.
+
+*Default:* `true`
+
 ### `captureQualifiedUnitNames`:array
 This is an array of all of the unit names that will be considered capture-qualified units. A capture-qualified unit is any unit that is capable of capturing the hill if its team is the only team with capture-qualified units in the hill.<br>
+This option will have no effect if `allUnitsCaptureQualified` is `true`.<br>
 A list of unit names can be found [here](https://github.com/beyond-all-reason/Beyond-All-Reason/blob/master/language/en/units.json).
 
 *Default:* all commander unit types

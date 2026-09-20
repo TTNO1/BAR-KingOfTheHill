@@ -138,7 +138,7 @@ local LINE_TYPE_SYSTEM = 5
 -- #region Configuration Constants
 
 --Defines the version of this widget. If two players are using different versions, they will not be able to play with each other.
-local kothWidgetVersion = 1
+local kothWidgetVersion = 2
 
 -- the widget name used for logging
 local logWidgetName = "KOTH"
@@ -156,15 +156,16 @@ local defaultCaptureQualifiedUnitNames = {
 }
 
 local defaultModOptions = {
-	captureQualifiedUnitNames = defaultCaptureQualifiedUnitNames,
-	hillAreaArgs = {type = "circle", x = 0.5, z = 0.5, radius = 0.25},
+	hillAreaArgs = {type = "circle", x = 0.5, z = 0.5, radius = 0.1},
 	startBoxBuildRule = 1,
 	hillBuildRule = 2,
-	winKingTime = 360000,
-	captureDelay = 15000,
-	kingKeepsHill = true,
+	winKingTime = 120000,
+	captureDelay = 5000,
+	kingKeepsHill = false,
 	noDamageInBoxes = true,
-	explodeHillUnits = true
+	explodeHillUnits = true,
+	allUnitsCaptureQualified = true,
+	captureQualifiedUnitNames = defaultCaptureQualifiedUnitNames,
 }
 
 --Defines the maximum number of vertices that will be used to draw a map area outline
@@ -189,29 +190,23 @@ local belowWidgetsInOrder = {"playertv", "displayinfo", "unittotals", "music", p
 --Defines the default width of the UI box if there are no boxes below it to go off of
 local defaultUIBoxWidth = 340
 
---Defines the top and bottom padding on the ui box in pixels
-local uiBoxVerticalPadding = 10
-
 --Defines the horizontal padding in the ui box relative to box width
 local uiBoxHorizontalPadding = 0.05
 
 --Defines the width of a team progress bar relative to the ui box width
 local progressBarWidth = 0.7
 
---Defines the height of a team progress bar in pixels
-local progressBarHeight = 10
-
---Defines the vertical space between each team progress bar in pixels
-local progressBarVerticalSpacing = 6
-
---Defines the height of the capture progress bar in pixels
-local captureProgressBarHeight = 15
-
---Defines the margin above the capture bar in pixels
-local captureProgressBarTopMargin = 15
-
 --Defines the spacing in between the timers and progress bars relative to box width
 local timerLeftMargin = 0.05
+
+--Defines the vertical spacing of the items in the UI box in pixels
+local uiBoxVerticalSpacing = {
+	uiBoxVerticalPadding = 10,
+	progressBarHeight = 10,
+	progressBarVerticalSpacing = 6,
+	captureProgressBarHeight = 15,
+	captureProgressBarTopMargin = 15,
+}
 
 --Defines the vertical spacing of the items in the additional info box in pixels
 local addInfoVerticalSpacing = {
@@ -626,25 +621,14 @@ local function log(level, msg)
 	Spring.Log(logWidgetName, level, msg)
 end
 
---TODO remove
-function dump(o)
-   if type(o) == 'table' then
-      local s = '{ '
-      for k,v in pairs(o) do
-         if type(k) ~= 'number' then k = '"'..k..'"' end
-         s = s .. '['..k..'] = ' .. dump(v) .. ','
-      end
-      return s .. '} '
-   else
-      return tostring(o)
-   end
-end
-
 -- /////////////////////////////
 -- #endregion
 -- /////////////////////////////
 
 -- #region Mod Options
+
+-- whether all units are capture-qualified
+local allUnitsCaptureQualified
 
 -- a set of unit def ids of all capture-qualified unit types
 local captureQualifiedUnitDefIds = Set.new()
@@ -1519,6 +1503,9 @@ function RectMapArea:isCircleOverlapping(x, z, radius)
 	if dz <= zHalfSize then return true end
 	return distanceSquared(dx, dz, xHalfSize, zHalfSize) <= radius * radius
 end
+function RectMapArea:getUnitsInside(teamId)
+	return Spring.GetUnitsInRectangle(self.left, self.top, self.right, self.bottom, teamId)
+end
 
 local CircleMapArea = {
 	mt = {},
@@ -1562,6 +1549,9 @@ end
 function CircleMapArea:isCircleOverlapping(x, z, radius)
 	local sumRadius = self.radius + radius
 	return distanceSquared(x, z, self.x, self.z) <= sumRadius * sumRadius
+end
+function CircleMapArea:getUnitsInside(teamId)
+	return Spring.GetUnitsInCylinder(self.x, self.z, self.radius, teamId)
 end
 
 -- A class for basic UI text
@@ -1893,6 +1883,12 @@ local function loadModOptions()
 	
 	explodeHillUnits = validateBoolean("explodeHillUnits")
 	
+	allUnitsCaptureQualified = validateBoolean("allUnitsCaptureQualified")
+	if allUnitsCaptureQualified then
+		log("info", "allUnitsCaptureQualified is true; ignoring captureQualifiedUnitNames")
+		captureQualifiedUnitDefIds:clear()
+	end
+	
 	shouldDrawStartBoxes = noDamageInBoxes or startBoxBuildRule ~= 3
 	
 end
@@ -2169,11 +2165,11 @@ local function updateUIBoxPosition()
 	local right = ceil(belowBoxPos[4])
 	local scale = belowBoxPos[5]
 	
-	local scaledBoxVerticalPadding = round(uiBoxVerticalPadding * scale)
-	local scaledBarHeight = round(progressBarHeight * scale)
-	local scaledBarVerticalSpacing = round(progressBarVerticalSpacing * scale)
-	local scaledCaptureBarHeight = round(captureProgressBarHeight * scale)
-	local scaledCaptureBarTopMargin = round(captureProgressBarTopMargin * scale)
+	local scaledBoxVerticalPadding = round(uiBoxVerticalSpacing.uiBoxVerticalPadding * scale)
+	local scaledBarHeight = round(uiBoxVerticalSpacing.progressBarHeight * scale)
+	local scaledBarVerticalSpacing = round(uiBoxVerticalSpacing.progressBarVerticalSpacing * scale)
+	local scaledCaptureBarHeight = round(uiBoxVerticalSpacing.captureProgressBarHeight * scale)
+	local scaledCaptureBarTopMargin = round(uiBoxVerticalSpacing.captureProgressBarTopMargin * scale)
 	local scaledUIBoxHeight = ((scaledBarHeight + scaledBarVerticalSpacing) * numAllyTeams) +
 								(2 * scaledBoxVerticalPadding) - scaledBarVerticalSpacing +
 								scaledCaptureBarTopMargin + scaledCaptureBarHeight
@@ -2737,12 +2733,26 @@ function widget:GameFrame(frame)-- Note: first frame = 0
 	
 	if activePlayers:contains(myPlayerId) then
 		local inHill = false
-		for unitId in myCaptureQualifiedUnits:iter() do
-			if not Spring.GetUnitTransporter(unitId) then
-				local unitX, _, unitZ = Spring.GetUnitPosition(unitId)
-				if hillArea:isPointInside(unitX, unitZ) then
-					inHill = true
-					break
+		if allUnitsCaptureQualified then
+			local myUnitsInHill = hillArea:getUnitsInside(myTeam)
+			if myUnitsInHill then
+				for i = 1, #myUnitsInHill do
+					local unitId = myUnitsInHill[i]
+					local unitDef = UnitDefs[Spring.GetUnitDefID(unitId)]
+					if not unitDef.isBuilding and not unitDef.isStaticBuilder then
+						inHill = true
+						break
+					end
+				end
+			end
+		else
+			for unitId in myCaptureQualifiedUnits:iter() do
+				if not Spring.GetUnitTransporter(unitId) then
+					local unitX, _, unitZ = Spring.GetUnitPosition(unitId)
+					if hillArea:isPointInside(unitX, unitZ) then
+						inHill = true
+						break
+					end
 				end
 			end
 		end
