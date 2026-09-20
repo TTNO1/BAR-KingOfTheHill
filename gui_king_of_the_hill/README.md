@@ -8,7 +8,7 @@ In this game mode, a team wins by spending a certain amount of time as the king.
 ## How to Use
 
 ### Installation
-To install the widget, copy the [king_of_the_hill](<https://github.com/TTNO1/BAR-KingOfTheHill/tree/master/king_of_the_hill>) folder ([click here for zip](<https://downgit.github.io/#/home?url=https://github.com/TTNO1/BAR-KingOfTheHill/tree/master/king_of_the_hill>)) into your `LuaUI/Widgets` folder.
+To install the widget, copy the [gui_king_of_the_hill](<https://github.com/TTNO1/BAR-KingOfTheHill/tree/master/gui_king_of_the_hill>) folder ([click here for zip](<https://downgit.github.io/#/home?url=https://github.com/TTNO1/BAR-KingOfTheHill/tree/master/gui_king_of_the_hill>)) into your `LuaUI/Widgets` folder.
 
 The widget must be installed by every player in the match. If one player does not have it, they will not be a part of the KOTH game.
 
