@@ -1,1 +1,1 @@
-king_of_the_hill/README.md
+gui_king_of_the_hill/README.md
