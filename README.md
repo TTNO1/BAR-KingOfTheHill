@@ -131,6 +131,12 @@ At the bottom, the larger progress bar indicates which team is capturing the hil
 
 ![GUI Box](https://raw.githubusercontent.com/TTNO1/BAR-KingOfTheHill/refs/heads/master/Media/UI%20Game.png)
 
+If the `startBoxBuildRule` mod option is set to 1 or 2 or the `noDamageInBoxes` mod option is true, then each team's start box will have an outline drawn around it.
+
+The hill will have a gray outline drawn around it when it is uncaptured and will change to the king team's color when it is captured.
+
+![Hill Outline](https://raw.githubusercontent.com/TTNO1/BAR-KingOfTheHill/refs/heads/master/Media/Hill%20Captured.png)
+
 ## Limitations
 - Every player must have the widget installed.
 - Reloading the widget is not supported.
