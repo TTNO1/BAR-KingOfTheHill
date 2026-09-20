@@ -1,0 +1,10 @@
+{
+  "id": "king_of_the_hill",
+  "version": "1.0.0",
+  "display_name": "King of the Hill",
+  "author": "Saul Goodman",
+  "discord_link": "https://discord.com/channels/549281623154229250/1551155485560803338/1551155485560803338",
+  "github_link": "https://github.com/TTNO1/BAR-KingOfTheHill",
+  "description": "Adds an optional King of the Hill gamemode.",
+  "last_updated": "2026-09-20T00:00:00.000Z"
+}
