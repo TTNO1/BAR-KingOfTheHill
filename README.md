@@ -124,8 +124,12 @@ When you join a game with King of the Hill enabled, you will see a GUI box in th
 Below the list of players, several KOTH mod options are listed to inform you of the current game configuration.<br>
 This box will automatically hide itself once the game starts. You can show and hide it at any time by clicking on any of the King of the Hill GUI boxes.
 
+![GUI Box](https://raw.githubusercontent.com/TTNO1/BAR-KingOfTheHill/refs/heads/master/Media/UI%20Pregame%20Waiting%26Joined.png)
+
 Below that is a box with several progress bars. Each team has a progress bar that indicates how much time they must spend as the king before they win.<br>
 At the bottom, the larger progress bar indicates which team is capturing the hill and how much time is left before they capture it.
+
+![GUI Box](https://raw.githubusercontent.com/TTNO1/BAR-KingOfTheHill/refs/heads/master/Media/UI%20Game.png)
 
 ## Limitations
 - Every player must have the widget installed.
