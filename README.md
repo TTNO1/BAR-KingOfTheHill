@@ -44,6 +44,8 @@ Any mod options that are not included will resort to their default settings.
 <details>
 <summary>Click here for a full explanation of the mod options.</summary>
 
+---
+
 ### `hillAreaArgs`:table
 This is a table that defines the hill area on the map. It may be a rectangular region or a circular region. The coordinates are given on a scale from 0 to 1 as proportions of the map's width/height.<br>
 **Circle:**<br>
@@ -106,6 +108,8 @@ A list of unit names can be found [here](https://github.com/beyond-all-reason/Be
 
 *Default:* all commander unit types
 
+---
+
 </details><br>
 
 **To easily configure the mod options** to your liking, you can use this webpage:
@@ -128,4 +132,4 @@ At the bottom, the larger progress bar indicates which team is capturing the hil
 - Reloading the widget is not supported.
 - The UI will lag behind the game by as much as the most lagging player is lagging.
 - Currently, the UI only supports displaying up to 32 players in a game.
-- Because this is only a widget, it cannot prevent against all kinds of cheating.
+- Because this is only a widget, it cannot prevent against deliberate cheating (i.e. modifying the widget code).
