@@ -243,10 +243,10 @@ local exo2SemiBoldFontPath = "fonts/Exo2-SemiBold.otf"
 
 -- Paths to shader files
 local shaderPaths = {
-	progressBarVertexShader = "LuaUI/Widgets/king_of_the_hill/kingofthehillui.vert.glsl",
-	progressBarFragmentShader = "LuaUI/Widgets/king_of_the_hill/kingofthehillui.frag.glsl",
-	mapAreaVertexShader = "LuaUI/Widgets/king_of_the_hill/kingofthehillmaparea.vert.glsl",
-	mapAreaFragmentShader = "LuaUI/Widgets/king_of_the_hill/kingofthehillmaparea.frag.glsl",
+	progressBarVertexShader = "LuaUI/Widgets/gui_king_of_the_hill/kingofthehillui.vert.glsl",
+	progressBarFragmentShader = "LuaUI/Widgets/gui_king_of_the_hill/kingofthehillui.frag.glsl",
+	mapAreaVertexShader = "LuaUI/Widgets/gui_king_of_the_hill/kingofthehillmaparea.vert.glsl",
+	mapAreaFragmentShader = "LuaUI/Widgets/gui_king_of_the_hill/kingofthehillmaparea.frag.glsl",
 }
 
 -- The size of the arrays in the fragment shaders
