@@ -2019,7 +2019,7 @@ function widget:Initialize()
 	
 	local buildRuleAddInfoValues = {
 		[1] = {text = "Start Box", color = fontColors.red},
-		[2] = {text = "No Enemy Boxes", color = fontColors.yellow},
+		[2] = {text = "No Op. Boxes", color = fontColors.yellow},
 		[3] = {text = "Anywhere", color = fontColors.green}
 	}
 	
@@ -2039,7 +2039,8 @@ function widget:Initialize()
 		UITextElement.new({text = "Hill Build Rule: ", fontSize = fontSizes.addInfoModOptionNames, parent = addInfoBoxElement}),
 		UITextElement.new({text = "King Keeps Hill: ", fontSize = fontSizes.addInfoModOptionNames, parent = addInfoBoxElement}),
 		UITextElement.new({text = "Hill Buildings Explode: ", fontSize = fontSizes.addInfoModOptionNames, parent = addInfoBoxElement}),
-		UITextElement.new({text = "Immune in Start Box: ", fontSize = fontSizes.addInfoModOptionNames, parent = addInfoBoxElement})
+		UITextElement.new({text = "Immune in Start Box: ", fontSize = fontSizes.addInfoModOptionNames, parent = addInfoBoxElement}),
+		UITextElement.new({text = "All Units Capture: ", fontSize = fontSizes.addInfoModOptionNames, parent = addInfoBoxElement})
 	}
 	
 	modOptionValueAddInfoTexts = {
@@ -2082,6 +2083,15 @@ function widget:Initialize()
 		UITextElement.new({
 			text = booleanAddInfoValues[noDamageInBoxes].text,
 			color = booleanAddInfoValues[noDamageInBoxes].color,
+			textAlignment = UITextElement.TextAlignment.RIGHT,
+			outline = true,
+			fontSize = fontSizes.addInfoModOptionValues,
+			bold = true,
+			parent = addInfoBoxElement
+		}),
+		UITextElement.new({
+			text = booleanAddInfoValues[allUnitsCaptureQualified].text,
+			color = booleanAddInfoValues[allUnitsCaptureQualified].color,
 			textAlignment = UITextElement.TextAlignment.RIGHT,
 			outline = true,
 			fontSize = fontSizes.addInfoModOptionValues,
