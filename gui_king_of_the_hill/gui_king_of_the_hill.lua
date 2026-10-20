@@ -1898,7 +1898,7 @@ local function parseModOptions()
 	local modOptions = Spring.GetModOptions()
 	local tweakDefs = modOptions.tweakdefs
 	for i = 1, 30 do
-		if tweakDefs and tweakDefs ~= "" then
+		if tweakDefs and tweakDefs ~= "" and tweakDefs ~= "0" then
 			log("info", "Looking for KOTH mod options in tweakdefs" .. (i > 1 and i - 1 or ""))
 			local tweakDefsLua = tweakDefs:base64Decode()
 			local modOptionsLua = extractModOptionsCode(tweakDefsLua)
